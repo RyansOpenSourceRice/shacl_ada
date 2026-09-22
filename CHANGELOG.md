@@ -4,6 +4,29 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [2026.09.22.2] — 2026-09-22
+
+Corpus vendored in-tree. This release lands the `corpus-vendor` milestone: the W3C SHACL test suite is now pinned, vendored, integrity-checked, and refreshable by script — before any validator code exists, so the shapes-parsing work that follows is test-driven from day one.
+
+### Added
+
+- `corpora/data-shapes-test-suite/tests/` — the W3C SHACL suite data, vendored verbatim from `w3c/data-shapes` (150 files: `core/` cases, the `sparql/` SHACL-AF cases, `manifest.ttl`). Whole-suite scope; Core selection is a runner concern, not a data edit.
+- `corpora/PIN.md` — recorded pin: upstream URL, ref (`gh-pages`), commit `c0b949e`, vendoring date, vendored-path scope, semantic anchor (W3C SHACL 1.0 Recommendation, 20 July 2017), and the verbatim rule.
+- `corpora/SHA256SUMS` — integrity manifest over the vendored tree.
+- `scripts/vendor-corpus.sh` — vendoring/refresh script: `--ref <sha|tag>` to re-pin, `--verify` to check integrity. Uses a blobless partial clone and records the commit SHA from a real clone (never from memory).
+- `.github/workflows/corpus.yml` — CI integrity verification on changes touching `corpora/` or the vendor script, plus an on-demand (`workflow_dispatch`) upstream-drift check. No scheduled jobs (§9).
+
+### Changed
+
+- `corpora/README.md` — rewritten for the real layout: upstream path (`data-shapes-test-suite/tests/`), generated artifacts, vendoring workflow, and the verbatim rule.
+- `.pre-commit-config.yaml` — the vendored corpus is excluded from the mutating hygiene hooks (trailing-whitespace, end-of-file-fixer) and from Vale: upstream data is verbatim, and rewriting it would break the manifest.
+- `cspell.json` — ignore paths extended for the vendored tree.
+- `THIRD_PARTY_NOTICES.md` — the W3C Software and Document License entry for the vendored suite (replaces the anticipated-entry placeholder).
+- `SPECIFICATION.md` — file inventory, CI contract (`corpus` workflow), and test-corpus contract updated for the vendored state.
+- `ROADMAP.md` — `corpus-vendor` moved to Recently completed; shapes-graph parsing is next and is annotated as the first implementation commit (Ada toolchain job + conformance runner wiring).
+- `DESIGN.md` — corpus vendoring rationale (in-tree snapshot + manifest, rejected alternatives: submodule, fetch-on-demand, auto re-pinning); root-budget note for `scripts/` and `corpora/`.
+- `project.ontology.ttl` — `corpus-vendor` milestone complete; test-corpus component description updated; CI workflow description includes the corpus job.
+
 ## [2026.09.22.1] — 2026-09-22
 
 Bootstrap. This release establishes the repository's standards, quality gates, crate scaffold, and tracked plan. The validator itself is not implemented yet; the build order lives in `ROADMAP.md`.

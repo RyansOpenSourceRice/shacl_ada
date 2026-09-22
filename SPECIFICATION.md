@@ -12,6 +12,7 @@
 | `.github/workflows/pre-commit.yml` | CI gate — same hooks as local |
 | `.github/workflows/sast.yml` | OpenGrep static analysis, fail-closed |
 | `.github/workflows/review.yml` | AI diff review on PRs, non-blocking |
+| `.github/workflows/corpus.yml` | Corpus integrity verify + on-demand upstream-drift check |
 | `.github/ISSUE_TEMPLATE/` | `bug_report.yml`, `feature_proposal.yml`, `config.yml` |
 | `.github/PULL_REQUEST_TEMPLATE.md` | Default PR description template |
 | `alire.toml` | Alire crate descriptor |
@@ -19,7 +20,11 @@
 | `src/shacl_ada.ads` | Root package stub (crate boundary; no implementation yet) |
 | `project.ontology.ttl` | Project ontology (§36 scaffold + working instance layer) |
 | `validation/shapes.ttl` | SHACL shapes for the ontology |
-| `corpora/README.md` | Test-corpus pin policy (data vendored later) |
+| `corpora/README.md` | Test-corpus policy: source, pin, layout, verbatim rule |
+| `corpora/PIN.md` | Recorded pin: upstream URL, ref, commit, date, scope (generated) |
+| `corpora/SHA256SUMS` | Integrity manifest over the vendored tree (generated) |
+| `corpora/data-shapes-test-suite/tests/` | Vendored W3C suite data — verbatim upstream |
+| `scripts/vendor-corpus.sh` | Vendoring/refresh script: `--ref <sha|tag>` to re-pin, `--verify` for integrity |
 | `CHANGELOG.md` | Keep a Changelog, CalVer `YYYY.MM.DD.N` |
 | `CONTRIBUTING.md` | Workflow, gate, AI-contribution rules |
 | `MAINTAINERS.md` | Scope, ownership, non-goals |
@@ -64,6 +69,7 @@ Workflows run in parallel, all `contents: read`, concurrency-cancelled per ref:
 | `pre-commit` | push to `main`/`dev`, PRs | The gate — same hooks as local |
 | `sast` | push to `main`/`dev`, PRs | OpenGrep over the repo, fails on findings |
 | `review` | PRs only | `ocr review` against the PR base; skips itself without `OPENROUTER_API_KEY`; `continue-on-error: true` |
+| `corpus` | push/PR touching `corpora/**` or the vendor script; `workflow_dispatch` | PRs/pushes: run `vendor-corpus.sh --verify` (integrity). Dispatch: compare pinned commit with the upstream tip and report drift — no scheduled jobs (§9) |
 
 Skipped-by-design jobs (documented per §29, added when they apply): `test` (no test suite until the corpus lands with the first conformance run), `container` (no container ships — OS-free library), `dynamic` (no runtime to probe), and the Ada toolchain job (`alr build` + `gnatprove`, lands with the first implementation commit).
 
@@ -85,8 +91,11 @@ Skipped-by-design jobs (documented per §29, added when they apply): `test` (no 
 
 ## Test-corpus contract
 
-- `corpora/README.md` pins the policy now: source (w3c/data-shapes SHACL test-suite data), semantic anchor (W3C SHACL 1.0 Recommendation, 20 July 2017), pin-first rule (`corpora/PIN.md` records URL + commit SHA + date at vendoring time), verbatim vendoring (no edits to upstream test data).
-- Vendoring and wiring to the conformance runner happen at the `corpus-vendor` milestone.
+- `corpora/data-shapes-test-suite/tests/` holds the vendored W3C SHACL suite data, verbatim from `w3c/data-shapes` (whole `tests/` scope — the `sparql/` SHACL-AF cases ride along unexecuted; Core selection is a runner concern).
+- `corpora/PIN.md` records upstream URL, vendored ref, commit SHA (from a real clone, never from memory), date, scope, and the verbatim rule. `corpora/SHA256SUMS` covers every vendored file.
+- Vendoring/re-pinning goes through `scripts/vendor-corpus.sh`; integrity is checked by `scripts/vendor-corpus.sh --verify` locally and by the `corpus` CI workflow on changes. Upstream-drift checking is on-demand (`workflow_dispatch`).
+- The corpus is excluded from mutating pre-commit hooks and local linting — it is upstream data (§29 documented skip for the vendored paths).
+- Wiring to the conformance runner happens with the first implementation commit (shapes-parsing milestone).
 
 ## Conformance target
 

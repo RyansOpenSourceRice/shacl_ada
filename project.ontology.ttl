@@ -249,15 +249,15 @@ onto:component-alire-crate a onto:Component ;
 
 onto:component-test-corpus a onto:Component ;
     onto:name "Test corpus" ;
-    onto:description "corpora/ holds the pinned W3C SHACL test-suite data used for conformance testing; the pin record exists, the vendored data lands with the first conformance run." ;
+    onto:description "corpora/ holds the pinned W3C SHACL test-suite data vendored verbatim (core/ and sparql/ cases plus manifest.ttl), with PIN.md provenance and SHA256SUMS integrity; the conformance runner wiring lands with the first implementation commit." ;
     onto:status "in-progress" .
 
 ## Milestones (ROADMAP.md is generated from these)
 
 onto:milestone-corpus-vendor a onto:Milestone ;
     onto:name "Vendor the pinned W3C SHACL test suite" ;
-    onto:description "Vendor the pinned W3C data-shapes test-suite manifest/data into corpora/ at the recorded pin, wired to the first conformance test run." ;
-    onto:status "not-started" .
+    onto:description "Vendor the pinned W3C data-shapes test-suite data into corpora/ at the recorded pin, with integrity manifest, vendoring script, and the corpus CI workflow." ;
+    onto:status "complete" .
 
 onto:milestone-shapes-parsing a onto:Milestone ;
     onto:name "Shapes-graph parsing" ;
@@ -357,7 +357,7 @@ onto:lesson-ontology-instance-marker a onto:LessonLearned ;
 onto:workflow-ci a onto:Workflow ;
     onto:workflowType "ci" ;
     onto:status "in-progress" ;
-    onto:description "GitHub Actions pipeline: pre-commit gate, sast, review. The Ada toolchain job (alr build, gnatprove) lands with the first implementation commit." .
+    onto:description "GitHub Actions pipeline: pre-commit gate, sast, review, corpus (integrity verify + on-demand upstream-drift check). The Ada toolchain job (alr build, gnatprove) lands with the first implementation commit." .
 
 onto:workflow-dependency-update a onto:Workflow ;
     onto:workflowType "dependency-update" ;

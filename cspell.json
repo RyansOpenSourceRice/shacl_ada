@@ -11,6 +11,7 @@
     "styles/**",
     ".github/**",
     ".agents/**",
+    "corpora/data-shapes-test-suite/**",
     ".vale.ini"
   ],
   "words": [
@@ -22,11 +23,13 @@
     "Authentik",
     "autocrlf",
     "automerged",
+    "blobless",
     "CalVer",
     "codespell",
     "Containerfile",
     "corpora",
     "cspell",
+    "refreshable",
     "Flyology",
     "flyology",
     "Forgejo",
