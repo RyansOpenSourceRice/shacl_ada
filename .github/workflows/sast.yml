@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+# OpenGrep static analysis — fail-closed SAST stage (preferences.md §29).
+
+name: sast
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sast-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  opengrep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Install OpenGrep
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
+          echo "$HOME/.opengrep/cli/latest" >> "$GITHUB_PATH"
+      - name: Scan (fail on findings)
+        run: opengrep scan --error --skip-unknown-extensions --config p/security-audit

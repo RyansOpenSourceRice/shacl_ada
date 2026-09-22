@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+# Host-native GitHub Actions pipeline (preferences.md §9, §29).
+# The pipeline shape is the same across hosts; only the file format and
+# runner differ. Gitleaks, spellcheck, and lint run through the pre-commit
+# suite only — there is no parallel CI/CD-only configuration (§9).
+# Jobs that do not apply are skipped with a documented reason in DESIGN.md
+# (test / container / dynamic; the Ada toolchain job lands with the first
+# implementation commit).
+#
+# Actions are referenced by major tag; Renovate (pinDigests: true, §29)
+# converts them to commit-SHA pins.
+
+name: pre-commit
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pre-commit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: pip install pre-commit
+      - name: Install OpenGrep (standalone binary, not on PyPI)
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
+          echo "$HOME/.opengrep/cli/latest" >> "$GITHUB_PATH"
+      - name: Cache pre-commit hook environments
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+      - run: pre-commit run --all-files --show-diff-on-failure

@@ -1,0 +1,226 @@
+# SPDX-License-Identifier: Apache-2.0
+# SHACL shapes for project.ontology.ttl (§33/§36 quality standard).
+# Run on demand, not loaded into a live dataset. Structural contract:
+# required properties per class and SKOS annotations on every class and
+# property.
+
+@prefix onto: <https://github.com/RyansOpenSourceRice/shacl_ada/onto#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+## Global: every class and property carries SKOS prefLabel + definition (§33)
+
+onto:ClassShape a sh:NodeShape ;
+    sh:targetClass owl:Class ;
+    sh:property [
+        sh:path skos:prefLabel ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Every owl:Class needs a skos:prefLabel (xsd:string)." ;
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Every owl:Class needs a skos:definition (xsd:string)." ;
+    ] .
+
+onto:ObjectPropertyShape a sh:NodeShape ;
+    sh:targetClass owl:ObjectProperty ;
+    sh:property [
+        sh:path skos:prefLabel ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] .
+
+onto:DatatypePropertyShape a sh:NodeShape ;
+    sh:targetClass owl:DatatypeProperty ;
+    sh:property [
+        sh:path skos:prefLabel ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] .
+
+## Per-class structural constraints (§36)
+
+onto:ProjectShape a sh:NodeShape ;
+    sh:targetClass onto:Project ;
+    sh:property [
+        sh:path onto:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path onto:description ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path onto:status ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "planning" "in-development" "beta" "stable" "maintenance" "archived" ) ;
+    ] ;
+    sh:property [
+        sh:path onto:maintainedBy ;
+        sh:minCount 1 ;
+        sh:class onto:Person ;
+    ] .
+
+onto:ComponentShape a sh:NodeShape ;
+    sh:targetClass onto:Component ;
+    sh:property [
+        sh:path onto:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path onto:status ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "planned" "in-progress" "complete" "blocked" ) ;
+    ] .
+
+onto:MilestoneShape a sh:NodeShape ;
+    sh:targetClass onto:Milestone ;
+    sh:property [
+        sh:path onto:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path onto:status ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "not-started" "in-progress" "complete" "overdue" ) ;
+    ] .
+
+onto:DecisionShape a sh:NodeShape ;
+    sh:targetClass onto:Decision ;
+    sh:property [
+        sh:path onto:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path onto:rationale ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path onto:date ;
+        sh:minCount 1 ;
+        sh:datatype xsd:date ;
+    ] ;
+    sh:property [
+        sh:path onto:status ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "active" "superseded" "retracted" ) ;
+    ] .
+
+onto:LessonLearnedShape a sh:NodeShape ;
+    sh:targetClass onto:LessonLearned ;
+    sh:property [
+        sh:path onto:description ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path onto:category ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path onto:date ;
+        sh:minCount 1 ;
+        sh:datatype xsd:date ;
+    ] .
+
+onto:WorkflowShape a sh:NodeShape ;
+    sh:targetClass onto:Workflow ;
+    sh:property [
+        sh:path onto:workflowType ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path onto:status ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "not-started" "in-progress" "complete" "failed" "blocked" ) ;
+    ] .
+
+onto:PersonShape a sh:NodeShape ;
+    sh:targetClass onto:Person ;
+    sh:property [
+        sh:path onto:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path onto:role ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] .
+
+onto:LocaleShape a sh:NodeShape ;
+    sh:targetClass onto:Locale ;
+    sh:property [
+        sh:path onto:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path onto:status ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "complete" "partial" "missing" "stale" ) ;
+    ] .
+
+onto:TestSuiteShape a sh:NodeShape ;
+    sh:targetClass onto:TestSuite ;
+    sh:property [
+        sh:path onto:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path onto:status ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "passing" "failing" "skipped" ) ;
+    ] .
+
+onto:BlockerShape a sh:NodeShape ;
+    sh:targetClass onto:Blocker ;
+    sh:property [
+        sh:path onto:description ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path onto:blockerType ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "bug" "dependency" "decision" "external" ) ;
+    ] ;
+    sh:property [
+        sh:path onto:status ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:in ( "active" "resolved" ) ;
+    ] .

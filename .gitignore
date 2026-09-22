@@ -1,5 +1,34 @@
-# Object file
-*.o
+# SPDX-License-Identifier: Apache-2.0
+# Local tooling caches — never commit (§29: index artifacts are gitignored)
+.pre-commit-cache/
+.cache/
+.opencode/
+.code-index/
+.vale-cache/
+.ocr/
+reports/
 
-# Ada Library Information
+# Ada / Alire / GNAT build artifacts
+alire/
+obj/
+bin/
+lib/
 *.ali
+*.o
+*.adb.bak
+gnatprove/
+.spark/
+
+# Node and Python
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

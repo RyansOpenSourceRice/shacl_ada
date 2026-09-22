@@ -1,0 +1,35 @@
+name: Bug report
+description: Something in shacl_ada behaves against its specification.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read CONTRIBUTING.md and MAINTAINERS.md (scope) first. Security issues
+        go through private vulnerability reporting, not this form.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Observed behavior vs expected behavior, per SPECIFICATION.md.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal shapes/data graphs and steps. Use synthetic data only — never real credentials.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Shapes-graph parsing
+        - Constraint evaluation
+        - Validation report
+        - Build / Alire crate
+        - Documentation
+    validations:
+      required: true

@@ -1,0 +1,47 @@
+# Changelog
+
+All notable changes to this project are recorded here. The format follows [Keep a Changelog](https://keepachangelog.com/) conventions (`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`). Versions use CalVer `YYYY.MM.DD.N` (release date, daily counter), the same scheme across all owned projects (preferences.md §9). Every shipped change gets its row **as part of the change**, not retroactively before release.
+
+## [Unreleased]
+
+## [2026.09.22.1] — 2026-09-22
+
+Bootstrap. This release establishes the repository's standards, quality gates, crate scaffold, and tracked plan. The validator itself is not implemented yet; the build order lives in `ROADMAP.md`.
+
+### Added
+
+- `CHANGELOG.md` (this file) — Keep a Changelog format, CalVer versions.
+- `CONTRIBUTING.md` — dev→main workflow, pre-commit gate, AI-contribution rules, changelog/roadmap-with-change rules.
+- `.pre-commit-config.yaml` — the single gate: Gitleaks, cspell (spelling), Vale (prose style), standard hygiene hooks, OpenGrep (static analysis), open-code-review (AI diff review, manual stage).
+- `cspell.json` — project word list (SHACL, Ada/SPARK/Alire/GNAT vocabulary) and ignore paths for the spelling gate.
+- `.vale.ini` + `styles/Template/` — self-contained prose style: banned promotional/AI-slop phrasing, sentence-case headings, repeated-word detection.
+- `.github/workflows/pre-commit.yml` — the gate: `pre-commit run --all-files` on push to `main`/`dev` and on PRs.
+- `.github/workflows/sast.yml` — OpenGrep static analysis, fail-closed.
+- `.github/workflows/review.yml` — AI diff review on PRs (open-code-review), skips without `OPENROUTER_API_KEY`, non-blocking.
+- `.github/ISSUE_TEMPLATE/` — bug report and feature proposal issue forms; `config.yml` routes security reports to private vulnerability reporting.
+- `.github/PULL_REQUEST_TEMPLATE.md` — default PR template; enforces the changelog/roadmap/ontology-update checklist and AI-assistance disclosure.
+- `alire.toml` — Alire crate descriptor: `shacl_ada`, `0.1.0-dev`, Apache-2.0, published description.
+- `shacl_ada.gpr` — GNAT static library project over `src/`.
+- `src/shacl_ada.ads` — root package stub (`pragma Pure`) establishing the crate boundary.
+- `project.ontology.ttl` — per-repo project ontology (preferences.md §36): the 10 core classes as OWL 2 DL with SKOS annotations, and this project's working instance layer.
+- `validation/shapes.ttl` — SHACL shapes validating the ontology's structural constraints.
+- `corpora/README.md` — test-corpus pin policy: source suite, semantic anchor (W3C SHACL 1.0 Recommendation, 20 July 2017), pin-first rule, verbatim vendoring.
+- `README.md` — rewritten for the library's audience with shields.io badges, status, build order, and file map.
+- `MAINTAINERS.md` — scope, ownership, non-goals, co-maintainer path.
+- `ROADMAP.md` — planned, explicitly not building, and direction.
+- `DESIGN.md` — the why: OS-free SPARK core, Core-first scope, Apache-2.0 per §18, GitHub as hosting forge, `flyology_rdf` as the RDF syntax layer, pre-commit-as-gate, cspell+Vale over codespell, OpenGrep via system binary, root-budget overflow note, GitHub project-settings checklist, and skip reasons for jobs that do not apply.
+- `SPECIFICATION.md` — the what: file inventory, pre-commit contract, CI contract, crate contract, ontology contract, corpus contract, conformance target, versioning.
+- `SECURITY.md` — vulnerability reporting, 100-day fix SLA framing, AI-use and model disclosure.
+- `AGENTS.md` — validated AI behavior guidance for this repo: cold-start self-orientation, gate rules, and update discipline.
+- `marketing.md` — audience and skill-level context for AI agents.
+- `THIRD_PARTY_NOTICES.md` — open-source license disclosure (§29): Apache-2.0 project, no third-party code yet, anticipated corpus entry.
+- `.gitignore` — tool caches, editor state, Ada/Alire build artifacts.
+- `renovate.json` — single Renovate config (one file, runs anywhere): Dependency Dashboard, pinned digests, OSV vulnerability alerts, grouped non-breaking updates, automerge for patch and dev-dependency updates.
+- `.agents/skills/ryans-ontology-access/SKILL.md` — pointer skill routing agents to the global ontologies (Apache Jena MCP servers) and the project ontology file, instead of a drift-prone preferences copy.
+
+### Security
+
+- Gitleaks scans every commit for secrets through the pre-commit gate, locally and in CI.
+- OpenGrep static analysis runs in CI on every push.
+- Actions workflows declare least-privilege `permissions: contents: read`.
+- Repository secrets that carry LLM keys (`OPENROUTER_API_KEY`) stay masked and scoped to the `review` workflow, which skips itself when the key is absent.

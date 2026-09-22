@@ -1,0 +1,12 @@
+---
+# Repeated words within a sentence ("the the", "a a", ...) read as typos;
+# spelling itself is cspell's job.
+
+extends: repetition
+message: "'%s' is repeated in the sentence."
+level: warning
+scope: sentence
+ignorecase: true
+# Letters only: punctuation runs and markdown syntax must not trigger the rule.
+tokens:
+  - '[a-zA-Z]+'
