@@ -4,6 +4,23 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [2026.09.22.3] — 2026-09-22
+
+Pointer skill removed from the repository. `.agents/skills/ryans-ontology-access/` was copied in at bootstrap from the template's file set, but the skill is a global asset whose only home is `ryans-agentic-coding-preferences`; bundling it per-repo multiplies a drift-prone file. Agent orientation for this repository is carried entirely by `AGENTS.md`.
+
+### Removed
+
+- `.agents/skills/ryans-ontology-access/` — the pointer skill routing agents to the global ontologies. It stays in its single home (`ryans-agentic-coding-preferences`); project repos must not carry copies.
+
+### Changed
+
+- `.pre-commit-config.yaml` — Vale exclude reduced to the vendored-corpus pattern; the `.agents/` clause is gone with the directory.
+- `cspell.json` — `.agents/**` removed from ignore paths.
+- `DESIGN.md` — the pointer-skill section rewritten as the no-bundled-skills rationale (drift for `preferences.md`, global-asset ownership for the skill); rejected-alternatives bullet reworded.
+- `SPECIFICATION.md`, `README.md` — file-inventory rows for the skill removed.
+- `MAINTAINERS.md`, `ROADMAP.md` — non-goal statements now cover both the preferences skill and the pointer skill; both are global assets, `AGENTS.md` carries orientation.
+- `project.ontology.ttl` — `component-pointer-skill` removed; the decision rewritten as `decision-no-bundled-skills` ("No preferences or pointer skill bundled in project repos"), documenting the removal as the alternative now adopted.
+
 ## [2026.09.22.2] — 2026-09-22
 
 Corpus vendored in-tree. This release lands the `corpus-vendor` milestone: the W3C SHACL test suite is now pinned, vendored, integrity-checked, and refreshable by script — before any validator code exists, so the shapes-parsing work that follows is test-driven from day one.

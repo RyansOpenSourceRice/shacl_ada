@@ -37,7 +37,6 @@
 | `THIRD_PARTY_NOTICES.md` | Open-source license disclosure |
 | `.gitignore` | Non-empty; caches and build artifacts |
 | `renovate.json` | Single Renovate config |
-| `.agents/skills/ryans-ontology-access/SKILL.md` | Pointer skill to global ontologies |
 | `README.md` | Badges, status, file map |
 | `LICENSE` | Apache-2.0 |
 

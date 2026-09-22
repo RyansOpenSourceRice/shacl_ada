@@ -24,7 +24,7 @@ This project is a **linkable W3C SHACL 1.0 Core validator in SPARK for Ada**: sh
 - **Does not ship a validator binary, server, CLI, or GUI.** It is a library; applications embed it and own their interfaces.
 - **Does not carry side effects or global state.** The root package is `pragma Pure`; the core is reentrant and OS-free.
 - **Does not enforce the maintainer's preferences on third-party repositories.** Scope guardrail from preferences.md §1.
-- **Does not bundle the full preferences skill.** The pointer skill (`.agents/skills/ryans-ontology-access/`) keeps agents on the global ontologies.
+- **Does not bundle the preferences or pointer skill.** Both are global assets with their home in `ryans-agentic-coding-preferences`; `AGENTS.md` carries agent orientation for this repository.
 
 ## Path to becoming a co-maintainer
 

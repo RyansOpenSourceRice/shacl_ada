@@ -44,7 +44,6 @@ Bootstrap. The repository carries its standards, quality gates, crate scaffold, 
 | `DESIGN.md`, `SPECIFICATION.md` | The why and the what |
 | `SECURITY.md`, `AGENTS.md`, `marketing.md` | Disclosure, AI guidance, audience context |
 | `THIRD_PARTY_NOTICES.md` | Open-source license disclosure (§29) |
-| `.agents/skills/ryans-ontology-access/` | Pointer skill to the global ontologies |
 | `renovate.json` | Dependency updates (single config, runs anywhere) |
 
 ## Why DESIGN.md and SPECIFICATION.md are separate

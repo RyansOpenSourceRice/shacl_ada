@@ -10,7 +10,6 @@
     "**/*.ttl",
     "styles/**",
     ".github/**",
-    ".agents/**",
     "corpora/data-shapes-test-suite/**",
     ".vale.ini"
   ],

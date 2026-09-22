@@ -22,10 +22,8 @@ repos:
     hooks:
       - id: vale
         files: \.(md|markdown)$
-        # .agents/ holds the upstream-copied pointer skill; keep it
-        # byte-identical to its source and out of local linting (§27).
         # The vendored corpus is upstream prose/data — never locally linted.
-        exclude: ^(\.agents/|corpora/data-shapes-test-suite/)
+        exclude: ^(corpora/data-shapes-test-suite/)
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
