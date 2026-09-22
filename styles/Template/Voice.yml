@@ -1,0 +1,18 @@
+---
+# Template style: project-neutral prose checks, self-contained (no package
+# downloads). Per preferences.md §23 (neutral, factual voice; no promotional
+# register) and §28 (AI as a neutral tool — no personhood-implying phrasing).
+
+extends: existence
+message: "Avoid promotional or AI-slop phrasing ('%s') — use neutral, factual wording."
+level: error
+ignorecase: true
+tokens:
+  - thrilled to announce
+  - game-changing
+  - cutting-edge
+  - revolutionary
+  - I think
+  - I feel
+  - believe me
+  - as an AI

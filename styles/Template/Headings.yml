@@ -1,0 +1,41 @@
+---
+# Headings use sentence case; the exception list is word-level (Vale matches
+# exceptions wherever the word appears in the heading). Keep project words,
+# acronyms, and filename headings exempt; extend per project as needed.
+
+extends: capitalization
+message: "'%s' should use sentence case."
+level: suggestion
+scope: heading
+match: $sentence
+exceptions:
+  - AGENTS
+  - AGPL
+  - AI
+  - API
+  - CalVer
+  - CD
+  - CHANGELOG
+  - CI
+  - CONTRIBUTING
+  - DESIGN
+  - GitLab
+  - I
+  - Keep
+  - macOS
+  - MAINTAINERS
+  - MR
+  - OCR
+  - OWL
+  - PR
+  - README
+  - Renovate
+  - ROADMAP
+  - ryans-agentic-coding-template
+  - SECURITY
+  - SemVer
+  - SHACL
+  - SKOS
+  - SPECIFICATION
+  - Vale
+  - cspell

@@ -1,0 +1,62 @@
+# pre-commit is the gate: locally and in CI/CD the same hooks run.
+# Per preferences.md §9 and §29 — there is no parallel CI/CD-only configuration
+# for Gitleaks, spellcheck, or linting; this file is the only configuration.
+#
+# Floor per §29: spellcheck, lint, Gitleaks, standard hygiene hooks.
+# Template additions: cspell (spelling), Vale (prose style), OpenGrep (static
+# analysis), open-code-review (AI diff review, manual stage — needs an LLM key
+# provided securely or the open-code-review extension installed for OpenCode).
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/streetsidesoftware/cspell-cli
+    rev: v10.2.0
+    hooks:
+      - id: cspell
+
+  - repo: https://github.com/errata-ai/vale
+    rev: v3.20.0
+    hooks:
+      - id: vale
+        files: \.(md|markdown)$
+        # .agents/ holds the upstream-copied pointer skill; keep it
+        # byte-identical to its source and out of local linting (§27).
+        exclude: ^\.agents/
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: local
+    hooks:
+      # OpenGrep is the static-analysis scanner (§29 `sast` job). Installed
+      # separately (it is not on PyPI):
+      #   curl -fsSL https://raw.githubusercontent.com/opengrep/opengrep/main/install.sh | bash
+      - id: opengrep
+        name: opengrep (static analysis)
+        entry: opengrep scan
+        language: system
+        args:
+          - --error
+          - --skip-unknown-extensions
+          - --config
+          - p/security-audit
+
+      # Open-code-review (`ocr`) reviews the working diff with an LLM.
+      # Runs only on explicit request:
+      #   pre-commit run open-code-review --hook-stage manual
+      # It requires an LLM endpoint configured (OPENROUTER_API_KEY provided
+      # securely, or the open-code-review extension installed for OpenCode).
+      - id: open-code-review
+        name: open-code-review (AI diff review)
+        entry: ocr review
+        language: system
+        pass_filenames: false
+        stages: [manual]

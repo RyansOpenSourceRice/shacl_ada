@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+name = "shacl_ada"
+description = "W3C SHACL 1.0 Core validator in SPARK for Ada: shapes-graph parsing, constraint evaluation, and validation-report vocabulary. Bounded memory, no I/O, OS-free."
+long-description = """# shacl_ada
+
+A linkable W3C SHACL 1.0 Core validator written in SPARK.
+
+- Shapes-graph parsing, constraint evaluation, and the validation-report
+  vocabulary per the W3C SHACL Recommendation.
+- Pure, OS-free SPARK core: bounded memory, no I/O, no OS calls.
+- Conformance testing against the pinned W3C SHACL test suite.
+
+The crate is in bootstrap; the validator is not implemented yet. See
+SPECIFICATION.md for the contract and ROADMAP.md for the build order.
+"""
+version = "0.1.0-dev"
+licenses = ["Apache-2.0"]
+authors = ["Ryan"]
+maintainers = ["Ryan <RyansOpenSourceRice@users.noreply.github.com>"]
+maintainers-logins = ["RyansOpenSourceRice"]
+website = "https://github.com/RyansOpenSourceRice/shacl_ada"
+tags = ["shacl", "w3c", "rdf", "validation", "spark", "formal-verification"]

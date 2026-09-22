@@ -1,0 +1,32 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Single Renovate config — one file, runs anywhere (preferences.md §29). Platform auto-detection; no per-forge variants.",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":enablePre-commit"
+  ],
+  "pinDigests": true,
+  "osvVulnerabilityAlerts": true,
+  "labels": ["dependencies"],
+  "schedule": ["before 5am on Monday"],
+  "packageRules": [
+    {
+      "description": "Group non-breaking updates (minor + patch) into one PR",
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "non-breaking dependency updates"
+    },
+    {
+      "description": "Automerge patch and digest updates that pass CI (major bumps are not automerged)",
+      "matchUpdateTypes": ["patch", "digest"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Automerge dev-dependency updates that pass CI",
+      "matchDepTypes": ["devDependencies", "dev", "devDependenciesNonDev"],
+      "automerge": true,
+      "automergeType": "pr"
+    }
+  ]
+}

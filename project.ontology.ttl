@@ -1,0 +1,365 @@
+# SPDX-License-Identifier: Apache-2.0
+# project.ontology.ttl — per-repo project ontology (preferences.md §36).
+#
+# The AI reads this file directly (file read, no Fuseki required at this size).
+# Semantic version of THIS ontology: 1.0.0 — independent of the repo's CalVer
+# release version (§33). Update it when the ontology's structure changes.
+
+@prefix onto: <https://github.com/RyansOpenSourceRice/shacl_ada/onto#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://github.com/RyansOpenSourceRice/shacl_ada/onto#> a owl:Ontology ;
+    dcterms:title "shacl_ada project ontology" ;
+    owl:versionInfo "1.0.0" ;
+    dcterms:created "2026-09-22"^^xsd:date ;
+    dcterms:modified "2026-09-22"^^xsd:date ;
+    skos:prefLabel "SHACL Ada project ontology" ;
+    skos:definition "Per-repo project ontology for shacl_ada, following preferences.md §36: 10 core classes, SHACL-validated, tracked working state." .
+
+## ------------------------------------------------------------------
+## SCHEMA LAYER — the 10 core classes (§36). Keep intact when adapting.
+## ------------------------------------------------------------------
+
+onto:Project a owl:Class ;
+    skos:prefLabel "Project" ;
+    skos:definition "The project itself: name, description, audience, and status. Status is a state machine: planning, in-development, beta, stable, maintenance, archived. Read first at cold start to know the project phase." .
+
+onto:Component a owl:Class ;
+    skos:prefLabel "Component" ;
+    skos:definition "A logical component of the project. State: planned, in-progress, complete, blocked. Git tracks files; the ontology tracks logical boundaries and completion state." .
+
+onto:Milestone a owl:Class ;
+    skos:prefLabel "Milestone" ;
+    skos:definition "A project milestone with target date and status. Status: not-started, in-progress, complete, overdue. ROADMAP.md is generated from Milestone nodes; the ontology is canonical." .
+
+onto:Decision a owl:Class ;
+    skos:prefLabel "Decision" ;
+    skos:definition "A design decision: name, rationale, alternatives considered and why rejected, date, status, affected component. Status: active, superseded, retracted. DESIGN.md is generated from Decision nodes; the ontology is canonical." .
+
+onto:LessonLearned a owl:Class ;
+    skos:prefLabel "Lesson Learned" ;
+    skos:definition "A distilled insight from a prior session: when doing X, do Y because Z. Carries the lesson text, brief context, category, and date. Future sessions query this instead of re-reading chat history." .
+
+onto:Workflow a owl:Class ;
+    skos:prefLabel "Workflow" ;
+    skos:definition "A project workflow state machine: workflowType and status, not config (config lives in CI files). Status: not-started, in-progress, complete, failed, blocked. Types include ci, testing, release, dependency-update, security-scan, code-review." .
+
+onto:Person a owl:Class ;
+    skos:prefLabel "Person" ;
+    skos:definition "A person involved in the project: maintainer, contributor, target user. Git tracks commit authors; the ontology tracks roles and relationships." .
+
+onto:Locale a owl:Class ;
+    skos:prefLabel "Locale" ;
+    skos:definition "i18n completion state for a locale: code and status (complete, partial, missing, stale). FTL files store translations; the ontology stores completion state." .
+
+onto:TestSuite a owl:Class ;
+    skos:prefLabel "Test Suite" ;
+    skos:definition "A test suite and its state: name and status (passing, failing, skipped). Git tracks test code; the ontology tracks test state for release readiness queries." .
+
+onto:Blocker a owl:Class ;
+    skos:prefLabel "Blocker" ;
+    skos:definition "Something blocking progress: description, type (bug, dependency, decision, external), what it blocks, and status (active, resolved)." .
+
+## Core properties
+
+onto:name a owl:DatatypeProperty ;
+    skos:prefLabel "name" ;
+    skos:definition "Human-readable name of the resource (project, component, milestone, person, locale, test suite)." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range xsd:string .
+
+onto:description a owl:DatatypeProperty ;
+    skos:prefLabel "description" ;
+    skos:definition "One-paragraph description of the resource." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range xsd:string .
+
+onto:status a owl:DatatypeProperty ;
+    skos:prefLabel "status" ;
+    skos:definition "State of the resource. The allowed vocabulary depends on the class — see each class definition (§36 status machines)." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range xsd:string .
+
+onto:audience a owl:DatatypeProperty ;
+    skos:prefLabel "audience" ;
+    skos:definition "Who the project is for (plain-language summary; marketing.md carries the full context)." ;
+    rdfs:domain onto:Project ;
+    rdfs:range xsd:string .
+
+onto:rationale a owl:DatatypeProperty ;
+    skos:prefLabel "rationale" ;
+    skos:definition "Why a decision was made, in one or two sentences." ;
+    rdfs:domain onto:Decision ;
+    rdfs:range xsd:string .
+
+onto:alternative a owl:DatatypeProperty ;
+    skos:prefLabel "alternative" ;
+    skos:definition "An alternative considered and why it was rejected. One value per alternative." ;
+    rdfs:domain onto:Decision ;
+    rdfs:range xsd:string .
+
+onto:category a owl:DatatypeProperty ;
+    skos:prefLabel "category" ;
+    skos:definition "Category of a lesson (workflow, ontology, tooling, documentation, …)." ;
+    rdfs:domain onto:LessonLearned ;
+    rdfs:range xsd:string .
+
+onto:workflowType a owl:DatatypeProperty ;
+    skos:prefLabel "workflow type" ;
+    skos:definition "The workflow type: ci, testing, release, dependency-update, security-scan, code-review, …" ;
+    rdfs:domain onto:Workflow ;
+    rdfs:range xsd:string .
+
+onto:role a owl:DatatypeProperty ;
+    skos:prefLabel "role" ;
+    skos:definition "The person's role in the project (maintainer, contributor, target user)." ;
+    rdfs:domain onto:Person ;
+    rdfs:range xsd:string .
+
+onto:blockerType a owl:DatatypeProperty ;
+    skos:prefLabel "blocker type" ;
+    skos:definition "What kind of blocker: bug, dependency, decision, external." ;
+    rdfs:domain onto:Blocker ;
+    rdfs:range xsd:string .
+
+onto:blocks a owl:ObjectProperty ;
+    skos:prefLabel "blocks" ;
+    skos:definition "What the blocker blocks: a component, milestone, or workflow." ;
+    rdfs:domain onto:Blocker ;
+    rdfs:range owl:Thing .
+
+onto:affectedComponent a owl:ObjectProperty ;
+    skos:prefLabel "affected component" ;
+    skos:definition "The component a decision or lesson relates to." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range onto:Component .
+
+onto:relatedComponent a owl:ObjectProperty ;
+    skos:prefLabel "related component" ;
+    skos:definition "The component context a lesson was learned in." ;
+    rdfs:domain onto:LessonLearned ;
+    rdfs:range onto:Component .
+
+onto:hasComponent a owl:ObjectProperty ;
+    skos:prefLabel "has component" ;
+    skos:definition "Links a project to one of its components." ;
+    rdfs:domain onto:Project ;
+    rdfs:range onto:Component .
+
+onto:hasMilestone a owl:ObjectProperty ;
+    skos:prefLabel "has milestone" ;
+    skos:definition "Links a project to one of its milestones." ;
+    rdfs:domain onto:Project ;
+    rdfs:range onto:Milestone .
+
+onto:hasDecision a owl:ObjectProperty ;
+    skos:prefLabel "has decision" ;
+    skos:definition "Links a project to one of its design decisions." ;
+    rdfs:domain onto:Project ;
+    rdfs:range onto:Decision .
+
+onto:hasLesson a owl:ObjectProperty ;
+    skos:prefLabel "has lesson" ;
+    skos:definition "Links a project to a lesson learned." ;
+    rdfs:domain onto:Project ;
+    rdfs:range onto:LessonLearned .
+
+onto:hasWorkflow a owl:ObjectProperty ;
+    skos:prefLabel "has workflow" ;
+    skos:definition "Links a project to a tracked workflow." ;
+    rdfs:domain onto:Project ;
+    rdfs:range onto:Workflow .
+
+onto:maintainedBy a owl:ObjectProperty ;
+    skos:prefLabel "maintained by" ;
+    skos:definition "Links a project to the person who maintains it (MAINTAINERS.md backs this up for humans)." ;
+    rdfs:domain onto:Project ;
+    rdfs:range onto:Person .
+
+onto:date a owl:DatatypeProperty ;
+    skos:prefLabel "date" ;
+    skos:definition "Date the decision was made or the lesson was learned (ISO 8601)." ;
+    rdfs:domain owl:Thing ;
+    rdfs:range xsd:date .
+
+onto:lastRunDate a owl:DatatypeProperty ;
+    skos:prefLabel "last run date" ;
+    skos:definition "When the workflow last ran." ;
+    rdfs:domain onto:Workflow ;
+    rdfs:range xsd:date .
+
+## ------------------------------------------------------------------
+## INSTANCE LAYER — shacl_ada's own working state. Update as work progresses.
+## ------------------------------------------------------------------
+
+## Project
+
+onto:shacl-ada a onto:Project ;
+    onto:name "shacl_ada" ;
+    onto:description "W3C SHACL 1.0 Core validator in SPARK for Ada: shapes-graph parsing, constraint evaluation, and validation-report vocabulary. Bounded memory, no I/O, OS-free." ;
+    onto:audience "Ada and SPARK developers who need standards-conformant SHACL validation as a linkable library; RDF tool builders who need a provable constraint engine." ;
+    onto:status "in-development" ;
+    onto:maintainedBy onto:person-ryan .
+
+onto:person-ryan a onto:Person ;
+    onto:name "Ryan" ;
+    onto:role "maintainer" .
+
+## Components
+
+onto:component-standards-files a onto:Component ;
+    onto:name "Standards files" ;
+    onto:description "CHANGELOG, CONTRIBUTING, MAINTAINERS, ROADMAP, DESIGN, SPECIFICATION, SECURITY, AGENTS, marketing, THIRD_PARTY_NOTICES, .gitignore." ;
+    onto:status "complete" .
+
+onto:component-precommit-gate a onto:Component ;
+    onto:name "Pre-commit gate" ;
+    onto:description "gitleaks, cspell, Vale, hygiene hooks, OpenGrep, open-code-review (manual stage); single configuration locally and in CI." ;
+    onto:status "complete" .
+
+onto:component-github-workflow a onto:Component ;
+    onto:name "GitHub workflow" ;
+    onto:description "Issue forms, pull-request template, and GitHub Actions pipeline (pre-commit gate, sast, review), with a settings checklist for branch protection." ;
+    onto:status "complete" .
+
+onto:component-project-ontology a onto:Component ;
+    onto:name "Project ontology" ;
+    onto:description "project.ontology.ttl with the 10 §36 core classes and validation/shapes.ttl SHACL shapes." ;
+    onto:status "complete" .
+
+onto:component-dependency-updates a onto:Component ;
+    onto:name "Dependency updates" ;
+    onto:description "Single renovate.json: Dependency Dashboard, pinned digests, OSV alerts, grouped and automerged updates." ;
+    onto:status "complete" .
+
+onto:component-pointer-skill a onto:Component ;
+    onto:name "Pointer skill" ;
+    onto:description ".agents/skills/ryans-ontology-access routes agents to the global ontologies instead of shipping a drift-prone preferences copy." ;
+    onto:status "complete" .
+
+onto:component-alire-crate a onto:Component ;
+    onto:name "Alire crate scaffold" ;
+    onto:description "alire.toml crate descriptor, shacl_ada.gpr project file, and src/ stub package. Build verification lands with the first implementation commit, when an Alire/GNAT toolchain is in the pipeline." ;
+    onto:status "complete" .
+
+onto:component-test-corpus a onto:Component ;
+    onto:name "Test corpus" ;
+    onto:description "corpora/ holds the pinned W3C SHACL test-suite data used for conformance testing; the pin record exists, the vendored data lands with the first conformance run." ;
+    onto:status "in-progress" .
+
+## Milestones (ROADMAP.md is generated from these)
+
+onto:milestone-corpus-vendor a onto:Milestone ;
+    onto:name "Vendor the pinned W3C SHACL test suite" ;
+    onto:description "Vendor the pinned W3C data-shapes test-suite manifest/data into corpora/ at the recorded pin, wired to the first conformance test run." ;
+    onto:status "not-started" .
+
+onto:milestone-shapes-parsing a onto:Milestone ;
+    onto:name "Shapes-graph parsing" ;
+    onto:description "Parse shapes graphs into a bounded internal representation: node shapes, property shapes, targets, and constraint parameters." ;
+    onto:status "not-started" .
+
+onto:milestone-constraint-engine a onto:Milestone ;
+    onto:name "Constraint evaluation engine" ;
+    onto:description "Evaluate the Core constraint components against a data graph and produce violations per the SHACL semantics." ;
+    onto:status "not-started" .
+
+onto:milestone-report-vocabulary a onto:Milestone ;
+    onto:name "Validation-report vocabulary" ;
+    onto:description "Emit sh:ValidationReport, sh:ValidationResult, and the Core result-message/severity/paths vocabulary." ;
+    onto:status "not-started" .
+
+onto:milestone-spark-silver a onto:Milestone ;
+    onto:name "SPARK Silver proofs for the validator core" ;
+    onto:description "Run gnatprove over the validator core to Silver-level assurance: full proof of absence of runtime errors on the proved units." ;
+    onto:status "not-started" .
+
+onto:milestone-alire-index a onto:Milestone ;
+    onto:name "Publish to the Alire index" ;
+    onto:description "Submit the crate to the community Alire index once the Core validator is usable from a linkable build." ;
+    onto:status "not-started" .
+
+## Decisions (DESIGN.md is generated from these)
+
+onto:decision-apache-license a onto:Decision ;
+    onto:name "Apache-2.0 license" ;
+    onto:rationale "shacl_ada is a linkable library, so the Apache family applies (§18): corporate-friendly, maximizes adoption in tooling that embeds a validator." ;
+    onto:alternative "GPL-family licenses — rejected: link-time infection is the wrong default for a library meant to be embedded in third-party tools." ;
+    onto:date "2026-09-22"^^xsd:date ;
+    onto:status "active" .
+
+onto:decision-pure-core a onto:Decision ;
+    onto:name "OS-free SPARK core" ;
+    onto:rationale "The validator core is a pure SPARK computation over bounded memory with no I/O and no OS calls, so it embeds anywhere (bare metal, servers, proofs) and its behavior is fully specified." ;
+    onto:alternative "A validator that reads graphs itself — rejected: I/O and filesystem coupling make the core unprovable and unembeddable; parsing stays at the edge." ;
+    onto:date "2026-09-22"^^xsd:date ;
+    onto:status "active" .
+
+onto:decision-core-only a onto:Decision ;
+    onto:name "W3C SHACL 1.0 Core first" ;
+    onto:rationale "Core defines the shapes graph, constraint evaluation, and report vocabulary; conformance against the W3C Core test suite is checkable and provable. Advanced Features extend a proven core." ;
+    onto:alternative "Core plus Advanced Features from day one — rejected: AF doubles the surface (rules, recursion, annotations) before the core semantics are proven." ;
+    onto:date "2026-09-22"^^xsd:date ;
+    onto:status "active" .
+
+onto:decision-github-home a onto:Decision ;
+    onto:name "GitHub as the hosting forge" ;
+    onto:rationale "The Ada/SPARK and Alire ecosystems are GitHub-native (crate discovery, CI actions, pinned test-suite sources); §27's GitLab-home rule is about where owned open-source projects default, and this specialty-language library targets an audience that lives on GitHub (§26)." ;
+    onto:alternative "GitLab hosting — rejected for this repo: weaker discovery path for the Alire/GNAT audience; routing is per-project, not ideological." ;
+    onto:date "2026-09-22"^^xsd:date ;
+    onto:status "active" .
+
+onto:decision-flyology-rdf a onto:Decision ;
+    onto:name "flyology_rdf as the RDF syntax layer" ;
+    onto:rationale "Graph parsing and term handling come from the sibling Ada RDF library (flyology_rdf) rather than a hand-rolled parser inside the validator; SHACL semantics are the hard part, RDF syntax is solved once." ;
+    onto:alternative "Bundling an RDF parser into shacl_ada — rejected: duplicate work and a second place for parse bugs; the validator consumes an already-built graph." ;
+    onto:date "2026-09-22"^^xsd:date ;
+    onto:status "active" .
+
+onto:decision-single-gate a onto:Decision ;
+    onto:name "Pre-commit is the single gate" ;
+    onto:rationale "The checked-in pre-commit config is the only configuration for gitleaks, spellcheck, and linting; CI runs the same suite. Two configs for one tool guarantee drift (§9)." ;
+    onto:alternative "Parallel CI-only Gitleaks/codespell steps — rejected: drift between local and CI gates is a bug by definition." ;
+    onto:date "2026-09-22"^^xsd:date ;
+    onto:status "active" .
+
+onto:decision-cspell-vale a onto:Decision ;
+    onto:name "cspell + Vale replace Codespell" ;
+    onto:rationale "cspell covers project vocabulary and editor integration; Vale adds the prose-style layer (§23 banned phrasing, heading case, repetitions) that spell-checking alone does not provide." ;
+    onto:alternative "Codespell only — rejected: no project vocabulary, no grammar-style checks. Deviation from §9 documented in DESIGN.md pending upstream update." ;
+    onto:date "2026-09-22"^^xsd:date ;
+    onto:status "active" ;
+    onto:affectedComponent onto:component-precommit-gate .
+
+onto:decision-pointer-skill a onto:Decision ;
+    onto:name "Pointer skill over a preferences copy" ;
+    onto:rationale "Copying preferences.md into the repo would require the §27 byte-identical sync rule on every upstream update — guaranteed drift. Agents query the global ontologies via the Jena MCP servers instead." ;
+    onto:alternative "Bundling the full preferences skill — rejected: drift risk; the global ontology is the source of truth." ;
+    onto:date "2026-09-22"^^xsd:date ;
+    onto:status "active" ;
+    onto:affectedComponent onto:component-pointer-skill .
+
+## Lessons learned
+
+onto:lesson-ontology-instance-marker a onto:LessonLearned ;
+    onto:description "Keep the ontology's instance layer under an explicit comment block so updates are a bounded edit, not a rewrite of the schema scaffold." ;
+    onto:category "ontology" ;
+    onto:date "2026-09-22"^^xsd:date ;
+    onto:relatedComponent onto:component-project-ontology .
+
+## Workflows
+
+onto:workflow-ci a onto:Workflow ;
+    onto:workflowType "ci" ;
+    onto:status "in-progress" ;
+    onto:description "GitHub Actions pipeline: pre-commit gate, sast, review. The Ada toolchain job (alr build, gnatprove) lands with the first implementation commit." .
+
+onto:workflow-dependency-update a onto:Workflow ;
+    onto:workflowType "dependency-update" ;
+    onto:status "in-progress" ;
+    onto:description "Renovate runs weekly; Dependency Dashboard is the single view of pending updates." .

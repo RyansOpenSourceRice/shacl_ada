@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+# AI diff review — reviewer, not gate (preferences.md §7, §28).
+# PR-triggered only; surfaces findings non-blocking (continue-on-error).
+# Needs OPENROUTER_API_KEY as a secret; skips itself when absent.
+
+name: review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ocr:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: npm install -g @alibaba-group/open-code-review
+      - name: AI review of the PR diff
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "OPENROUTER_API_KEY not set — skipping AI review."
+            exit 0
+          fi
+          ocr review --from "${{ github.event.pull_request.base.sha }}"
