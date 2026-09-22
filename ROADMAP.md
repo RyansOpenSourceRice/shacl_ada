@@ -8,8 +8,7 @@ shacl_ada becomes the dependable Ada/SPARK building block for SHACL validation: 
 
 ## Planned
 
-- **Vendor the pinned W3C SHACL test suite** — land the corpus in `corpora/` at the recorded pin (`corpora/README.md`), wired to the first conformance test run.
-- **Shapes-graph parsing** — node shapes, property shapes, targets, and Core constraint parameters parsed from the graph provided by the RDF syntax layer.
+- **Shapes-graph parsing** — node shapes, property shapes, targets, and Core constraint parameters parsed from the graph provided by the RDF syntax layer. First implementation commit: brings the Ada toolchain job (`alr build` + `gnatprove`) into the pipeline and wires the vendored corpus to a conformance runner.
 - **Constraint evaluation engine** — the Core constraint components evaluated per the Recommendation's semantics, producing violations.
 - **Validation-report vocabulary** — `sh:ValidationReport`/`sh:ValidationResult` output with severity, focus/value nodes, paths, and messages.
 - **SPARK Silver proofs** — gnatprove over the validator core: absence of runtime errors on the proved units.
@@ -31,3 +30,4 @@ shacl_ada becomes the dependable Ada/SPARK building block for SHACL validation: 
 ## Recently completed
 
 - **2026.09.22** — bootstrap: standards files, pre-commit gate, GitHub Actions pipeline, issue/PR templates, Alire crate scaffold, project ontology with SHACL shapes, corpus pin policy, pointer skill. See `CHANGELOG.md` [2026.09.22.1].
+- **2026.09.22** — corpus vendored: W3C SHACL suite in-tree at a recorded pin, with integrity manifest, vendoring script, and the `corpus` CI workflow (integrity verify + on-demand upstream-drift check). See `CHANGELOG.md` [2026.09.22.2].

@@ -24,13 +24,18 @@ repos:
         files: \.(md|markdown)$
         # .agents/ holds the upstream-copied pointer skill; keep it
         # byte-identical to its source and out of local linting (§27).
-        exclude: ^\.agents/
+        # The vendored corpus is upstream prose/data — never locally linted.
+        exclude: ^(\.agents/|corpora/data-shapes-test-suite/)
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
+      # The mutating hygiene hooks skip the vendored corpus: upstream data is
+      # verbatim (corpora/PIN.md), and rewriting it would break SHA256SUMS.
       - id: trailing-whitespace
+        exclude: ^corpora/data-shapes-test-suite/
       - id: end-of-file-fixer
+        exclude: ^corpora/data-shapes-test-suite/
       - id: check-yaml
       - id: check-added-large-files
 

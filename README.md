@@ -13,7 +13,7 @@ W3C SHACL 1.0 Core validator in SPARK for Ada: shapes-graph parsing, constraint 
 
 ## Status
 
-Bootstrap. The repository carries its standards, quality gates, crate scaffold, and tracked plan; the validator itself is not implemented yet. The build order lives in `ROADMAP.md` (test corpus → shapes-graph parsing → constraint evaluation → report vocabulary → SPARK proofs → Alire index publication).
+Bootstrap. The repository carries its standards, quality gates, crate scaffold, tracked plan, and the vendored conformance corpus; the validator itself is not implemented yet. The build order lives in `ROADMAP.md` (shapes-graph parsing → constraint evaluation → report vocabulary → SPARK proofs → Alire index publication).
 
 ## What it will do
 
@@ -24,7 +24,7 @@ Bootstrap. The repository carries its standards, quality gates, crate scaffold, 
 
 ## Using the repository
 
-- Conformance testing runs against the pinned W3C SHACL test suite (`corpora/`, pin policy in `corpora/README.md`).
+- Conformance testing runs against the W3C SHACL test suite, vendored in `corpora/` at a recorded pin (`corpora/PIN.md`); integrity is verified by `scripts/vendor-corpus.sh --verify` and CI.
 - The crate is built and consumed through [Alire](https://alire.ada.dev/); the descriptor is `alire.toml`.
 - Contributions follow `CONTRIBUTING.md`; AI agents follow `AGENTS.md`.
 
@@ -33,12 +33,13 @@ Bootstrap. The repository carries its standards, quality gates, crate scaffold, 
 | Path | Purpose |
 |---|---|
 | `.pre-commit-config.yaml` | The single quality gate (§29) |
-| `.github/workflows/` | Host-native CI: pre-commit gate, SAST, AI review |
+| `.github/workflows/` | Host-native CI: pre-commit gate, SAST, AI review, corpus integrity |
 | `.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE.md` | Issue and PR templates |
 | `alire.toml`, `shacl_ada.gpr`, `src/` | Alire crate descriptor, GNAT project, package stub |
 | `project.ontology.ttl` | The project ontology (§36) |
 | `validation/shapes.ttl` | SHACL shapes for the ontology |
-| `corpora/` | Pinned W3C SHACL test-suite corpus (pin record, vendoring pending) |
+| `corpora/` | Vendored W3C SHACL suite at a recorded pin (`PIN.md`, `SHA256SUMS`) |
+| `scripts/` | Maintainer tooling (`vendor-corpus.sh`) |
 | `CHANGELOG.md`, `CONTRIBUTING.md`, `MAINTAINERS.md`, `ROADMAP.md` | Repo standards |
 | `DESIGN.md`, `SPECIFICATION.md` | The why and the what |
 | `SECURITY.md`, `AGENTS.md`, `marketing.md` | Disclosure, AI guidance, audience context |

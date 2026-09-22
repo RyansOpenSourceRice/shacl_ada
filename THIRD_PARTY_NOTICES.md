@@ -7,11 +7,7 @@
 ## Current state
 
 - **This project's code and files:** Apache License 2.0 (see `LICENSE`).
-- **Third-party code embedded or vendored:** none yet. The project is in bootstrap; when a dependency or vendored corpus is added, its license text and attribution are recorded in this file as part of that change.
-
-## Anticipated entries
-
-- The W3C SHACL test-suite data vendored under `corpora/` will carry its upstream license terms here at vendoring time (see `corpora/README.md`).
+- **Vendored corpus:** the W3C SHACL test-suite data under `corpora/data-shapes-test-suite/tests/`, from the [w3c/data-shapes](https://github.com/w3c/data-shapes) repository at the commit recorded in `corpora/PIN.md`. All documents in that repository are licensed by contributors under the [W3C Software and Document License](http://www.w3.org/Consortium/Legal/copyright-software). The data is vendored verbatim (integrity manifest: `corpora/SHA256SUMS`); this project's additions around it are Apache-2.0.
 
 ## Runtime dependencies
 

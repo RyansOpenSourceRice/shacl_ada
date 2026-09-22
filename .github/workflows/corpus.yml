@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+# Corpus integrity: the vendored W3C SHACL suite must match its manifest on
+# every change, so edits to vendored data fail CI instead of passing silently.
+# The upstream-drift check is on-demand only (workflow_dispatch) — no
+# scheduled jobs on shared runners (preferences.md §9).
+
+name: corpus
+
+on:
+  pull_request:
+    paths:
+      - 'corpora/**'
+      - 'scripts/vendor-corpus.sh'
+  push:
+    branches: [main, dev]
+    paths:
+      - 'corpora/**'
+      - 'scripts/vendor-corpus.sh'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: corpus-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify corpus integrity
+        run: bash scripts/vendor-corpus.sh --verify
+
+  upstream-drift:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Compare pinned commit with upstream tip
+        run: |
+          REMOTE_SHA="$(git ls-remote https://github.com/w3c/data-shapes refs/heads/gh-pages | cut -f1)"
+          PINNED_SHA="$(grep -oP '^Commit: \K[0-9a-f]{40}' corpora/PIN.md)"
+          echo "pinned:   $PINNED_SHA"
+          echo "upstream: $REMOTE_SHA"
+          if [ "$PINNED_SHA" = "$REMOTE_SHA" ]; then
+            echo "No drift: upstream is still at the pinned commit."
+          else
+            echo "Drift: upstream moved past the pinned commit."
+            echo "To adopt the newer suite: bash scripts/vendor-corpus.sh --ref $REMOTE_SHA, then open a PR."
+          fi

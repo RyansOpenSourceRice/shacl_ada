@@ -27,9 +27,15 @@ Per preferences.md §18, libraries take the Apache family: corporate-friendly, l
 
 The audience is Ada/SPARK and Alire users — an ecosystem whose discovery path (Alire index, GitHub-hosted crates, GitHub Actions CI) is GitHub-native. preferences.md §27 makes GitLab the default home for owned open-source projects and treats GitHub as a publishing/mirroring target; this library's discovery runs through the language ecosystem instead (§26: discovery via the language package index), so the forge follows the audience. The decision and the alternative are recorded in the ontology.
 
-## Why the test corpus is pinned before it is vendored
+## Why the corpus is vendored in-tree with an integrity manifest
 
-`corpora/` records the pin policy now (`corpora/README.md`): the suite (w3c/data-shapes SHACL test-suite data), the semantic anchor (W3C SHACL 1.0 Recommendation, 20 July 2017), and the rule that `PIN.md` records the upstream commit at vendoring time. Pinning the policy before the data exists keeps the first conformance run reproducible instead of pointing at a moving upstream default branch.
+The corpus (w3c/data-shapes SHACL suite data) is vendored **in-tree**, as large formal projects vendor conformance corpora: a verbatim snapshot with recorded provenance (`corpora/PIN.md` — upstream URL, ref, commit, date, scope), a repeatable fetch/refresh script (`scripts/vendor-corpus.sh`), and an integrity manifest (`SHA256SUMS`) with a verify mode so any edit to the oracle data is detectable. The alternatives were rejected deliberately:
+
+- **Git submodule** — rejected: clone friction (`--recurse-submodules` for every consumer), greyed-out data on the forge web UI, and awkward tool integration. The pin guarantee is preserved without those costs because the script records a real clone SHA and the manifest covers every file.
+- **Fetch-on-demand in CI** — rejected: a conformance corpus that is not in the tree is not reproducible; a plain clone must carry everything needed to validate.
+- **Automatic upstream re-pinning** — rejected: the pin *is* the contract; adopting a newer suite is a deliberate, reviewed change (script + PR). CI verifies integrity and reports drift on demand (`workflow_dispatch`), it never moves the pin.
+
+The pre-commit hygiene hooks exclude the vendored paths from mutation — rewriting upstream data would break the manifest and the verbatim rule.
 
 ## Why pre-commit is the single gate
 
@@ -58,7 +64,7 @@ Copying `preferences.md` into this repository would require the §27 byte-identi
 
 ## Root-directory budget
 
-§29 targets at most 8 files and 8 directories at the root. This repository intentionally exceeds it: the standards files are the content a library repo needs at its root, and grouping them away would break the §29 convention that they live at the root. Overflow is documented here per §29; additions to the root get weighed against this budget.
+§29 targets at most 8 files and 8 directories at the root. This repository intentionally exceeds it: the standards files are the content a library repo needs at its root, and grouping them away would break the §29 convention that they live at the root. Overflow is documented here per §29; additions to the root get weighed against this budget. The `scripts/` directory (vendoring tooling) and `corpora/` (the in-tree corpus) were added against this budget and are each load-bearing: the script keeps re-pinning one command, and the corpus is what makes conformance reproducible.
 
 ## GitHub project-settings checklist (applied outside files)
 
