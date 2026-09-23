@@ -4,6 +4,28 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [2026.09.22.4] — 2026-09-22
+
+OpenSSF Scorecard wired into CI, and repository settings brought to the applied state: the failing Copilot-license check is gone, both branch rulesets are live, and the README loses its internal meta-section.
+
+### Added
+
+- `.github/workflows/scorecard.yml` — OpenSSF Scorecard analysis on every push to `main`/`dev`, PRs, and on demand; SARIF uploaded to code scanning, results published for the public badge. Event-driven only — no scheduled cron (§9). Actions are tag-pinned (Renovate converts to digest pins).
+- README — OpenSSF Scorecard badge in the badge row.
+
+### Changed
+
+- `README.md` — the "Why DESIGN.md and SPECIFICATION.md are separate" section removed: a README targets developers evaluating the library; internal doc-explainer content stays in the docs themselves. The `.github/workflows/` file-map row now lists Scorecard.
+- `SPECIFICATION.md` — file inventory and CI contract rows for the `scorecard` workflow.
+- Fix during review: `scorecard-action` pinned to the `v2.4.4` commit digest `2d114668` (the rolling `@v2` tag does not exist upstream). Triggers narrowed to pushes of `main` plus `workflow_dispatch`: the action publishes results only from the default branch, so dev and PR runs would both fail.
+- `DESIGN.md` — why the Scorecard is event-driven only (§9); the project-settings section rewritten to the applied state: rulesets `Protect Main` (PR + required checks + linear history + squash-only + no force-push/deletion) and `dev` (no force-push/deletion; operator pushes `dev` directly), and the code-scanning default setup disabled.
+- `project.ontology.ttl` — CI workflow description includes Scorecard; new decision `decision-scorecard` (benchmark per §9, event-driven per operator decision).
+- `cspell.json` — `scorecard`, `ossf`, `sarif` added to the word list.
+
+### Removed
+
+- Code-scanning default setup (repository setting, outside files) — GitHub's bundled AI code review requires a Copilot license and failed 403 on every PR; its CodeQL component only analyzed Actions files. Static analysis remains the `sast`/OpenGrep job; Scorecard SARIF has its own upload step.
+
 ## [2026.09.22.3] — 2026-09-22
 
 Pointer skill removed from the repository. `.agents/skills/ryans-ontology-access/` was copied in at bootstrap from the template's file set, but the skill is a global asset whose only home is `ryans-agentic-coding-preferences`; bundling it per-repo multiplies a drift-prone file. Agent orientation for this repository is carried entirely by `AGENTS.md`.

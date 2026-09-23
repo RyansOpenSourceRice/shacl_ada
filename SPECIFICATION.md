@@ -13,6 +13,7 @@
 | `.github/workflows/sast.yml` | OpenGrep static analysis, fail-closed |
 | `.github/workflows/review.yml` | AI diff review on PRs, non-blocking |
 | `.github/workflows/corpus.yml` | Corpus integrity verify + on-demand upstream-drift check |
+| `.github/workflows/scorecard.yml` | OpenSSF Scorecard supply-chain analysis, SARIF + public badge |
 | `.github/ISSUE_TEMPLATE/` | `bug_report.yml`, `feature_proposal.yml`, `config.yml` |
 | `.github/PULL_REQUEST_TEMPLATE.md` | Default PR description template |
 | `alire.toml` | Alire crate descriptor |
@@ -69,6 +70,7 @@ Workflows run in parallel, all `contents: read`, concurrency-cancelled per ref:
 | `sast` | push to `main`/`dev`, PRs | OpenGrep over the repo, fails on findings |
 | `review` | PRs only | `ocr review` against the PR base; skips itself without `OPENROUTER_API_KEY`; `continue-on-error: true` |
 | `corpus` | push/PR touching `corpora/**` or the vendor script; `workflow_dispatch` | PRs/pushes: run `vendor-corpus.sh --verify` (integrity). Dispatch: compare pinned commit with the upstream tip and report drift — no scheduled jobs (§9) |
+| `scorecard` | push to `main`, `workflow_dispatch` | OpenSSF Scorecard analysis; SARIF to code scanning and results published for the public badge. Event-driven only — no scheduled jobs (§9). No PR runs: the action publishes results only on push events |
 
 Skipped-by-design jobs (documented per §29, added when they apply): `test` (no test suite until the corpus lands with the first conformance run), `container` (no container ships — OS-free library), `dynamic` (no runtime to probe), and the Ada toolchain job (`alr build` + `gnatprove`, lands with the first implementation commit).
 

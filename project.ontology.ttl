@@ -331,6 +331,14 @@ onto:decision-cspell-vale a onto:Decision ;
     onto:status "active" ;
     onto:affectedComponent onto:component-precommit-gate .
 
+onto:decision-scorecard a onto:Decision ;
+    onto:name "OpenSSF Scorecard as the best-practice benchmark, event-driven" ;
+    onto:rationale "preferences.md §9 names the OpenSSF Security Scorecard as the benchmark; the workflow runs on every push and PR and publishes results for the public badge and code scanning. Event-driven only — no scheduled cron (§9): posture changes with pushes, not with the calendar. Pinned dependencies and token permissions were built in at bootstrap, covering the checks young repos fail hardest." ;
+    onto:alternative "Weekly scheduled Scorecard run — rejected: §9 no-scheduled-CI; event-driven chosen per operator decision (2026-09-22)." ;
+    onto:date "2026-09-22"^^xsd:date ;
+    onto:status "active" ;
+    onto:affectedComponent onto:workflow-ci .
+
 onto:decision-no-bundled-skills a onto:Decision ;
     onto:name "No preferences or pointer skill bundled in project repos" ;
     onto:rationale "Copying preferences.md into the repo would require the §27 byte-identical sync rule on every upstream update — guaranteed drift. The ontology-access pointer skill is a global asset whose only home is ryans-agentic-coding-preferences; copying it into project repos multiplies a drift-prone file. AGENTS.md carries agent orientation for this repository, pointing to the Jena MCP servers and the project ontology file." ;
@@ -351,7 +359,7 @@ onto:lesson-ontology-instance-marker a onto:LessonLearned ;
 onto:workflow-ci a onto:Workflow ;
     onto:workflowType "ci" ;
     onto:status "in-progress" ;
-    onto:description "GitHub Actions pipeline: pre-commit gate, sast, review, corpus (integrity verify + on-demand upstream-drift check). The Ada toolchain job (alr build, gnatprove) lands with the first implementation commit." .
+    onto:description "GitHub Actions pipeline: pre-commit gate, sast, review, corpus (integrity verify + on-demand upstream-drift check), scorecard (OpenSSF supply-chain analysis, event-driven). The Ada toolchain job (alr build, gnatprove) lands with the first implementation commit." .
 
 onto:workflow-dependency-update a onto:Workflow ;
     onto:workflowType "dependency-update" ;
