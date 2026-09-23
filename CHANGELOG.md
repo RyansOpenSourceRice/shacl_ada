@@ -17,7 +17,7 @@ OpenSSF Scorecard wired into CI, and repository settings brought to the applied 
 
 - `README.md` — the "Why DESIGN.md and SPECIFICATION.md are separate" section removed: a README targets developers evaluating the library; internal doc-explainer content stays in the docs themselves. The `.github/workflows/` file-map row now lists Scorecard.
 - `SPECIFICATION.md` — file inventory and CI contract rows for the `scorecard` workflow.
-- Fix during review: `scorecard-action` pinned to the `v2.4.4` commit digest `2d114668` (the rolling `@v2` tag does not exist upstream), and the `pull_request` trigger dropped — the action publishes results only on push events.
+- Fix during review: `scorecard-action` pinned to the `v2.4.4` commit digest `2d114668` (the rolling `@v2` tag does not exist upstream). Triggers narrowed to pushes of `main` plus `workflow_dispatch`: the action publishes results only from the default branch, so dev and PR runs would both fail.
 - `DESIGN.md` — why the Scorecard is event-driven only (§9); the project-settings section rewritten to the applied state: rulesets `Protect Main` (PR + required checks + linear history + squash-only + no force-push/deletion) and `dev` (no force-push/deletion; operator pushes `dev` directly), and the code-scanning default setup disabled.
 - `project.ontology.ttl` — CI workflow description includes Scorecard; new decision `decision-scorecard` (benchmark per §9, event-driven per operator decision).
 - `cspell.json` — `scorecard`, `ossf`, `sarif` added to the word list.
