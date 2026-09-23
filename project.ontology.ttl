@@ -237,11 +237,6 @@ onto:component-dependency-updates a onto:Component ;
     onto:description "Single renovate.json: Dependency Dashboard, pinned digests, OSV alerts, grouped and automerged updates." ;
     onto:status "complete" .
 
-onto:component-pointer-skill a onto:Component ;
-    onto:name "Pointer skill" ;
-    onto:description ".agents/skills/ryans-ontology-access routes agents to the global ontologies instead of shipping a drift-prone preferences copy." ;
-    onto:status "complete" .
-
 onto:component-alire-crate a onto:Component ;
     onto:name "Alire crate scaffold" ;
     onto:description "alire.toml crate descriptor, shacl_ada.gpr project file, and src/ stub package. Build verification lands with the first implementation commit, when an Alire/GNAT toolchain is in the pipeline." ;
@@ -336,13 +331,12 @@ onto:decision-cspell-vale a onto:Decision ;
     onto:status "active" ;
     onto:affectedComponent onto:component-precommit-gate .
 
-onto:decision-pointer-skill a onto:Decision ;
-    onto:name "Pointer skill over a preferences copy" ;
-    onto:rationale "Copying preferences.md into the repo would require the §27 byte-identical sync rule on every upstream update — guaranteed drift. Agents query the global ontologies via the Jena MCP servers instead." ;
-    onto:alternative "Bundling the full preferences skill — rejected: drift risk; the global ontology is the source of truth." ;
+onto:decision-no-bundled-skills a onto:Decision ;
+    onto:name "No preferences or pointer skill bundled in project repos" ;
+    onto:rationale "Copying preferences.md into the repo would require the §27 byte-identical sync rule on every upstream update — guaranteed drift. The ontology-access pointer skill is a global asset whose only home is ryans-agentic-coding-preferences; copying it into project repos multiplies a drift-prone file. AGENTS.md carries agent orientation for this repository, pointing to the Jena MCP servers and the project ontology file." ;
+    onto:alternative "Shipping the pointer skill per repo (bootstrapped from the template) — removed 2026-09-22: the skill is global, not project content." ;
     onto:date "2026-09-22"^^xsd:date ;
-    onto:status "active" ;
-    onto:affectedComponent onto:component-pointer-skill .
+    onto:status "active" .
 
 ## Lessons learned
 

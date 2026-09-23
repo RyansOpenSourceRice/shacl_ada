@@ -58,9 +58,9 @@ OpenGrep is the required static scanner (§29). It is not published on PyPI, and
 
 There is no implementation to compile. When the first validator code lands, an `alr build` + `gnatprove` job joins the pipeline (same shape as the other host-native jobs), and the pre-commit gate gains the Ada lint hooks that prove worth their setup cost. Until then the skip is documented here per §29 — not silently dropped.
 
-## Why a pointer skill instead of a preferences copy
+## Why no preferences or pointer skill is bundled
 
-Copying `preferences.md` into this repository would require the §27 byte-identical sync rule on every upstream update — guaranteed drift. The pointer skill (`.agents/skills/ryans-ontology-access/`) routes agents to the global ontologies (Jena MCP servers) and this repo's ontology file instead.
+Copying `preferences.md` into this repository would require the §27 byte-identical sync rule on every upstream update — guaranteed drift. The pointer skill that routes agents to the global ontologies is likewise out: it is a global asset with its only home in `ryans-agentic-coding-preferences`, and copying it into project repos multiplies a file that drifts the moment its source moves. Agent orientation for this repository is carried entirely by `AGENTS.md`, which points to the Jena MCP servers and the project ontology file directly.
 
 ## Root-directory budget
 
@@ -85,7 +85,7 @@ Settings that cannot be expressed in-repo; apply them on the repository:
 - **Core + SHACL-AF from day one** — rejected: AF doubles the surface before Core semantics are proven.
 - **Separate CI-only Gitleaks/codespell steps** — rejected (drift, §9).
 - **Codespell kept alongside cspell** — rejected; two spell-checkers is one too many.
-- **Bundling the full preferences skill** — rejected (drift risk; see pointer-skill section).
+- **Bundling the preferences or pointer skill** — rejected (drift risk; see the no-preferences-copy section).
 
 ## Open questions
 

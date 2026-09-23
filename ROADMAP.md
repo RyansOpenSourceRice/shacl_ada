@@ -25,7 +25,7 @@ shacl_ada becomes the dependable Ada/SPARK building block for SHACL validation: 
 - **No container image.** An OS-free library has no runtime to containerize.
 - **No scheduled CI on the shared forge.** Event-driven pipelines only; heavy or scheduled work belongs on owned hardware (§9 capacity awareness).
 - **No documentation site.** README + the standards files are the documentation surface (§9).
-- **No full copy of the preferences skill.** The pointer skill keeps agents on the global ontology; byte-identical preference copies would drift.
+- **No preferences or pointer skill in the repo.** Both are global assets (`ryans-agentic-coding-preferences`); byte-identical copies would drift.
 
 ## Recently completed
 
