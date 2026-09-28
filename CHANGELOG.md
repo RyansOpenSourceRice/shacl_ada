@@ -30,6 +30,10 @@ Shapes-graph parsing, the first implementation milestone: the proved SPARK core,
 - `THIRD_PARTY_NOTICES.md` — runtime-dependency entries for flyology_rdf and flyology_iri (MIT OR Apache-2.0).
 - `cspell.json` — word list extended for the new Ada identifiers and corpus path.
 
+### Fixed
+
+- `setup-alire` is pinned to alr 2.1.1 in the `ada` job: the flyology-ada index now declares Alire index-format 1.4.0, which alr 2.0.2 (the action's default) rejects. Matches the local toolchain version.
+
 ## [2026.09.22.4] — 2026-09-22
 
 OpenSSF Scorecard wired into CI, and repository settings brought to the applied state: the failing Copilot-license check is gone, both branch rulesets are live, and the README loses its internal meta-section.

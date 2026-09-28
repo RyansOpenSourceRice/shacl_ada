@@ -21,6 +21,8 @@ jobs:
           persist-credentials: false
 
       - uses: alire-project/setup-alire@v4
+        with:
+          version: "2.1.1"
 
       - name: Add the flyology Alire index
         run: alr index --add=git+https://github.com/flyology-ada/alire-index.git --name=flyology
