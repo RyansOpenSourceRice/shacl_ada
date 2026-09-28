@@ -257,7 +257,7 @@ onto:milestone-corpus-vendor a onto:Milestone ;
 onto:milestone-shapes-parsing a onto:Milestone ;
     onto:name "Shapes-graph parsing" ;
     onto:description "Parse shapes graphs into a bounded internal representation: node shapes, property shapes, targets, and constraint parameters." ;
-    onto:status "not-started" .
+    onto:status "complete" .
 
 onto:milestone-constraint-engine a onto:Milestone ;
     onto:name "Constraint evaluation engine" ;
@@ -359,7 +359,7 @@ onto:lesson-ontology-instance-marker a onto:LessonLearned ;
 onto:workflow-ci a onto:Workflow ;
     onto:workflowType "ci" ;
     onto:status "in-progress" ;
-    onto:description "GitHub Actions pipeline: pre-commit gate, sast, review, corpus (integrity verify + on-demand upstream-drift check), scorecard (OpenSSF supply-chain analysis, event-driven). The Ada toolchain job (alr build, gnatprove) lands with the first implementation commit." .
+    onto:description "GitHub Actions pipeline: pre-commit gate, sast, review, corpus (integrity verify + on-demand upstream-drift check), scorecard (OpenSSF supply-chain analysis, event-driven), ada (alr build, gnatprove proof gate, tests, conformance smoke)." .
 
 onto:workflow-dependency-update a onto:Workflow ;
     onto:workflowType "dependency-update" ;

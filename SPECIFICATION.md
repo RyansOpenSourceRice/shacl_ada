@@ -14,11 +14,15 @@
 | `.github/workflows/review.yml` | AI diff review on PRs, non-blocking |
 | `.github/workflows/corpus.yml` | Corpus integrity verify + on-demand upstream-drift check |
 | `.github/workflows/scorecard.yml` | OpenSSF Scorecard supply-chain analysis, SARIF + public badge |
+| `.github/workflows/ada.yml` | Ada toolchain job: `alr build`, gnatprove over the SPARK core, tests + conformance smoke |
 | `.github/ISSUE_TEMPLATE/` | `bug_report.yml`, `feature_proposal.yml`, `config.yml` |
 | `.github/PULL_REQUEST_TEMPLATE.md` | Default PR description template |
 | `alire.toml` | Alire crate descriptor |
 | `shacl_ada.gpr` | GNAT library project |
-| `src/shacl_ada.ads` | Root package stub (crate boundary; no implementation yet) |
+| `src/` | Pure SPARK core: root package, bounded term model (`SHACL_Ada.Terms`), shapes-graph model (`SHACL_Ada.Shapes`) |
+| `boundary/` | `SHACL_Ada.Rdf` — flyology_rdf adapter: Turtle loading and shapes-graph extraction (`SPARK_Mode (Off)`) |
+| `proof/spark_core.gpr` | SPARK-only proof project: gnatprove sees `src/` only, never the boundary or dependencies |
+| `tests/` | Test crate (pinned path dependency): `shapes_tests` extraction assertions, `conformance` corpus smoke runner |
 | `project.ontology.ttl` | Project ontology (§36 scaffold + working instance layer) |
 | `validation/shapes.ttl` | SHACL shapes for the ontology |
 | `corpora/README.md` | Test-corpus policy: source, pin, layout, verbatim rule |
@@ -71,13 +75,15 @@ Workflows run in parallel, all `contents: read`, concurrency-cancelled per ref:
 | `review` | PRs only | `ocr review` against the PR base; skips itself without `OPENROUTER_API_KEY`; `continue-on-error: true` |
 | `corpus` | push/PR touching `corpora/**` or the vendor script; `workflow_dispatch` | PRs/pushes: run `vendor-corpus.sh --verify` (integrity). Dispatch: compare pinned commit with the upstream tip and report drift — no scheduled jobs (§9) |
 | `scorecard` | push to `main`, `workflow_dispatch` | OpenSSF Scorecard analysis; SARIF to code scanning and results published for the public badge. Event-driven only — no scheduled jobs (§9). No PR runs: the action publishes results only on push events |
+| `ada` | push to `main`/`dev`, PRs | `alr build` over the crate, `gnatprove -U --level=1` over `proof/spark_core.gpr` (must prove clean), `shapes_tests`, and the `conformance` smoke run against the vendored corpus |
 
-Skipped-by-design jobs (documented per §29, added when they apply): `test` (no test suite until the corpus lands with the first conformance run), `container` (no container ships — OS-free library), `dynamic` (no runtime to probe), and the Ada toolchain job (`alr build` + `gnatprove`, lands with the first implementation commit).
+Skipped-by-design jobs (documented per §29, added when they apply): `container` (no container ships — OS-free library) and `dynamic` (no runtime to probe).
 
 ## Alire crate contract
 
 - `alire.toml`: crate `shacl_ada`, version `0.1.0-dev` (SemVer for libraries, §9/§26), license `Apache-2.0`, description matching the repo's published description.
-- `shacl_ada.gpr`: static library project over `src/`, library interface `SHACL_Ada`.
+- `shacl_ada.gpr`: static library project over `src/` (proved core) and `boundary/` (RDF adapter); library interface `SHACL_Ada`, `SHACL_Ada.Terms`, `SHACL_Ada.Shapes`, `SHACL_Ada.Rdf`.
+- Runtime dependency: `flyology_rdf` (and transitively `flyology_iri`) from the flyology-ada Alire index; licenses disclosed in `THIRD_PARTY_NOTICES.md`. Proof scope excludes it: `gnatprove` runs over `proof/spark_core.gpr` only.
 - `src/shacl_ada.ads`: root package, `pragma Pure` — the OS-free, stateless library boundary.
 - Build verification via `alr build` is deferred to the first implementation commit (no Ada toolchain in the pipeline yet; documented skip in `DESIGN.md`).
 
@@ -96,7 +102,7 @@ Skipped-by-design jobs (documented per §29, added when they apply): `test` (no 
 - `corpora/PIN.md` records upstream URL, vendored ref, commit SHA (from a real clone, never from memory), date, scope, and the verbatim rule. `corpora/SHA256SUMS` covers every vendored file.
 - Vendoring/re-pinning goes through `scripts/vendor-corpus.sh`; integrity is checked by `scripts/vendor-corpus.sh --verify` locally and by the `corpus` CI workflow on changes. Upstream-drift checking is on-demand (`workflow_dispatch`).
 - The corpus is excluded from mutating pre-commit hooks and local linting — it is upstream data (§29 documented skip for the vendored paths).
-- Wiring to the conformance runner happens with the first implementation commit (shapes-parsing milestone).
+- The `conformance` smoke runner parses a corpus shapes graph (with a `file://` base IRI — the corpus uses relative IRIs) and reports quad/shape/target counts; full per-test conformance runs land with the constraint-engine milestone.
 
 ## Conformance target
 

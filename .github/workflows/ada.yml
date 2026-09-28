@@ -1,0 +1,50 @@
+name: ada
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ada-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-prove-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: alire-project/setup-alire@v4
+
+      - name: Add the flyology Alire index
+        run: alr index --add=git+https://github.com/flyology-ada/alire-index.git --name=flyology
+
+      - name: Build the library
+        run: alr --non-interactive build
+
+      - name: Install gnatprove (pinned FSF build)
+        run: |
+          curl -fsSL -o /tmp/gnatprove.tar.gz \
+            https://github.com/alire-project/GNAT-FSF-builds/releases/download/gnatprove-16.1.0-1/gnatprove-x86_64-linux-16.1.0-1.tar.gz
+          echo "82528bef29857e239373fcc36732837d743f5a00805d502c70455422ffc97191  /tmp/gnatprove.tar.gz" | sha256sum -c -
+          mkdir -p "$HOME/.local/opt"
+          tar -xzf /tmp/gnatprove.tar.gz -C "$HOME/.local/opt"
+          echo "$HOME/.local/opt/gnatprove-x86_64-linux-16.1.0-1/bin" >> "$GITHUB_PATH"
+
+      - name: Prove the SPARK core
+        run: gnatprove -P proof/spark_core.gpr -U --level=1 -j0
+
+      - name: Build and run the tests
+        run: |
+          cd tests
+          alr --non-interactive build
+          alr --non-interactive exec -- bin/shapes_tests
+          alr --non-interactive exec -- bin/conformance \
+            ../corpora/data-shapes-test-suite/tests/core/complex/personexample.ttl \
+            ../corpora/data-shapes-test-suite/tests/core/complex/personexample.ttl

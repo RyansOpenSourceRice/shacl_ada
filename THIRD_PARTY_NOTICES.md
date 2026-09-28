@@ -11,7 +11,8 @@
 
 ## Runtime dependencies
 
-None yet. The first runtime dependency (the planned RDF syntax layer) is documented in `DESIGN.md` and lands with its license entry in this file in the same change.
+- **flyology_rdf 0.1.0-dev** — RDF syntax layer (Turtle parsing, datasets, terms) from the [flyology-ada/flyology-rdf](https://github.com/flyology-ada/flyology-rdf) project, dual-licensed [MIT OR Apache-2.0](https://github.com/flyology-ada/flyology-rdf/blob/main/LICENSE). Deployed through Alire from the flyology-ada index; consumed only by the `boundary/` adapter, never by the proved core.
+- **flyology_iri 0.1.1-dev** — transitive dependency of flyology_rdf (IRI handling) from [flyology-ada/flyology-iri](https://github.com/flyology-ada/flyology-iri), dual-licensed MIT OR Apache-2.0.
 
 ## In-app disclosure
 

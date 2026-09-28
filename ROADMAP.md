@@ -8,11 +8,9 @@ shacl_ada becomes the dependable Ada/SPARK building block for SHACL validation: 
 
 ## Planned
 
-- **Shapes-graph parsing** — node shapes, property shapes, targets, and Core constraint parameters parsed from the graph provided by the RDF syntax layer. First implementation commit: brings the Ada toolchain job (`alr build` + `gnatprove`) into the pipeline and wires the vendored corpus to a conformance runner.
 - **Constraint evaluation engine** — the Core constraint components evaluated per the Recommendation's semantics, producing violations.
 - **Validation-report vocabulary** — `sh:ValidationReport`/`sh:ValidationResult` output with severity, focus/value nodes, paths, and messages.
 - **SPARK Silver proofs** — gnatprove over the validator core: absence of runtime errors on the proved units.
-- **Ada toolchain CI job** — `alr build` + `gnatprove` job joins the pipeline with the first implementation commit.
 - **Alire index publication** — submit the crate to the community index once Core is usable from a linkable build.
 - **Preference-drift follow-up** — the switch from Codespell to cspell+Vale is a deviation from preferences.md §9 (which names Codespell). When §9 is updated upstream (operator-driven, §34), the DESIGN.md note is removed.
 - **Ontology serializer tooling** — `tools/serializer` setup for the EDM Council `rdf-toolkit.jar` (OpenJDK 21+) so ontology commits ship standardized Turtle formatting, when the toolchain is available.
@@ -29,5 +27,6 @@ shacl_ada becomes the dependable Ada/SPARK building block for SHACL validation: 
 
 ## Recently completed
 
+- **2026.09.27** — shapes-graph parsing: pure SPARK core (`SHACL_Ada.Terms`, `SHACL_Ada.Shapes`) proved by gnatprove (33 checks, level 1), `flyology_rdf` boundary adapter for Turtle loading and extraction, test crate (`shapes_tests`, `conformance` smoke runner over the vendored corpus), and the `ada` CI job (`alr build` + gnatprove + tests). See `CHANGELOG.md` [2026.09.27.1].
 - **2026.09.22** — bootstrap: standards files, pre-commit gate, GitHub Actions pipeline, issue/PR templates, Alire crate scaffold, project ontology with SHACL shapes, corpus pin policy, pointer skill. See `CHANGELOG.md` [2026.09.22.1].
 - **2026.09.22** — corpus vendored: W3C SHACL suite in-tree at a recorded pin, with integrity manifest, vendoring script, and the `corpus` CI workflow (integrity verify + on-demand upstream-drift check). See `CHANGELOG.md` [2026.09.22.2].

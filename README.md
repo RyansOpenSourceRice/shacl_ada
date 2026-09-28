@@ -1,8 +1,8 @@
 # shacl_ada
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2026.09.22.1-blue?style=flat-square)](CHANGELOG.md)
-[![Status](https://img.shields.io/badge/status-bootstrap%20--%20no%20implementation%20yet-orange?style=flat-square)](ROADMAP.md)
+[![Version](https://img.shields.io/badge/version-2026.09.27.1-blue?style=flat-square)](CHANGELOG.md)
+[![Status](https://img.shields.io/badge/status-shapes%20--%20graph%20parsing%20landed-yellow?style=flat-square)](ROADMAP.md)
 [![Pre-commit](https://img.shields.io/badge/pre--commit-gitleaks%20%7C%20cspell%20%7C%20Vale%20%7C%20OpenGrep%20%7C%20ocr-purple?style=flat-square)](.pre-commit-config.yaml)
 [![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions%20%7C%20pre--commit%20gate%20%7C%20SAST-orange?style=flat-square)](.github/workflows/pre-commit.yml)
 [![Renovate](https://img.shields.io/badge/Renovate-one%20config%20%7C%20pinned%20digests-green?style=flat-square)](renovate.json)
@@ -14,7 +14,7 @@ W3C SHACL 1.0 Core validator in SPARK for Ada: shapes-graph parsing, constraint 
 
 ## Status
 
-Bootstrap. The repository carries its standards, quality gates, crate scaffold, tracked plan, and the vendored conformance corpus; the validator itself is not implemented yet. The build order lives in `ROADMAP.md` (shapes-graph parsing → constraint evaluation → report vocabulary → SPARK proofs → Alire index publication).
+Shapes-graph parsing is implemented. The pure SPARK core (`SHACL_Ada.Terms`, `SHACL_Ada.Shapes`) is proved by gnatprove (all 33 checks at level 1) through `proof/spark_core.gpr`; the `boundary/` adapter loads Turtle via [`flyology_rdf`](https://github.com/flyology-ada/flyology-rdf) and extracts shapes, targets, and Core constraint parameters; the test crate runs extraction assertions and a corpus smoke runner; the `ada` CI job builds, proves, and tests. Constraint evaluation is next — the build order lives in `ROADMAP.md` (constraint evaluation → report vocabulary → SPARK Silver → Alire index publication).
 
 ## What it will do
 

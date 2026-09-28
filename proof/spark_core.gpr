@@ -1,0 +1,10 @@
+--  SPDX-License-Identifier: Apache-2.0
+--
+--  SPARK-only proof project: sees the pure core in src/, never the
+--  flyology_rdf boundary adapter. Run with:
+--    gnatprove -P proof/spark_core.gpr -U --level=1
+
+project Spark_Core is
+   for Source_Dirs use ("../src");
+   for Object_Dir use "obj";
+end Spark_Core;
