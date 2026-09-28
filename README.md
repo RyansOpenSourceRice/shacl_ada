@@ -1,11 +1,12 @@
 # shacl_ada
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
-[![Version](https://img.shields.io/badge/version-2026.09.22.1-blue?style=flat-square)](CHANGELOG.md)
-[![Status](https://img.shields.io/badge/status-bootstrap%20--%20no%20implementation%20yet-orange?style=flat-square)](ROADMAP.md)
+[![Version](https://img.shields.io/badge/version-2026.09.27.1-blue?style=flat-square)](CHANGELOG.md)
+[![Status](https://img.shields.io/badge/status-shapes%20--%20graph%20parsing%20landed-yellow?style=flat-square)](ROADMAP.md)
 [![Pre-commit](https://img.shields.io/badge/pre--commit-gitleaks%20%7C%20cspell%20%7C%20Vale%20%7C%20OpenGrep%20%7C%20ocr-purple?style=flat-square)](.pre-commit-config.yaml)
 [![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions%20%7C%20pre--commit%20gate%20%7C%20SAST-orange?style=flat-square)](.github/workflows/pre-commit.yml)
 [![Renovate](https://img.shields.io/badge/Renovate-one%20config%20%7C%20pinned%20digests-green?style=flat-square)](renovate.json)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/badge/github/RyansOpenSourceRice/shacl_ada?style=flat-square)](https://github.com/ossf/scorecard)
 [![Ontology](https://img.shields.io/badge/ontology-project.ontology.ttl%20%7C%20SHACL-yellow?style=flat-square)](project.ontology.ttl)
 [![Standards](https://img.shields.io/badge/standards-CHANGELOG%20%7C%20MAINTAINERS%20%7C%20DESIGN%20vs%20SPECIFICATION%20%7C%20ROADMAP-orange?style=flat-square)](MAINTAINERS.md)
 
@@ -13,7 +14,7 @@ W3C SHACL 1.0 Core validator in SPARK for Ada: shapes-graph parsing, constraint 
 
 ## Status
 
-Bootstrap. The repository carries its standards, quality gates, crate scaffold, tracked plan, and the vendored conformance corpus; the validator itself is not implemented yet. The build order lives in `ROADMAP.md` (shapes-graph parsing → constraint evaluation → report vocabulary → SPARK proofs → Alire index publication).
+Shapes-graph parsing is implemented. The pure SPARK core (`SHACL_Ada.Terms`, `SHACL_Ada.Shapes`) is proved by gnatprove (all 33 checks at level 1) through `proof/spark_core.gpr`; the `boundary/` adapter loads Turtle via [`flyology_rdf`](https://github.com/flyology-ada/flyology-rdf) and extracts shapes, targets, and Core constraint parameters; the test crate runs extraction assertions and a corpus smoke runner; the `ada` CI job builds, proves, and tests. Constraint evaluation is next — the build order lives in `ROADMAP.md` (constraint evaluation → report vocabulary → SPARK Silver → Alire index publication).
 
 ## What it will do
 
@@ -33,7 +34,7 @@ Bootstrap. The repository carries its standards, quality gates, crate scaffold, 
 | Path | Purpose |
 |---|---|
 | `.pre-commit-config.yaml` | The single quality gate (§29) |
-| `.github/workflows/` | Host-native CI: pre-commit gate, SAST, AI review, corpus integrity |
+| `.github/workflows/` | Host-native CI: pre-commit gate, SAST, AI review, corpus integrity, Scorecard |
 | `.github/ISSUE_TEMPLATE/`, `.github/PULL_REQUEST_TEMPLATE.md` | Issue and PR templates |
 | `alire.toml`, `shacl_ada.gpr`, `src/` | Alire crate descriptor, GNAT project, package stub |
 | `project.ontology.ttl` | The project ontology (§36) |
@@ -45,10 +46,6 @@ Bootstrap. The repository carries its standards, quality gates, crate scaffold, 
 | `SECURITY.md`, `AGENTS.md`, `marketing.md` | Disclosure, AI guidance, audience context |
 | `THIRD_PARTY_NOTICES.md` | Open-source license disclosure (§29) |
 | `renovate.json` | Dependency updates (single config, runs anywhere) |
-
-## Why DESIGN.md and SPECIFICATION.md are separate
-
-`DESIGN.md` answers why; `SPECIFICATION.md` answers what. Start with `DESIGN.md` to understand the shape of the library; `SPECIFICATION.md` for the contract.
 
 ## License
 

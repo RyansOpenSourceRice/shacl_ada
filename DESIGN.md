@@ -62,20 +62,32 @@ There is no implementation to compile. When the first validator code lands, an `
 
 Copying `preferences.md` into this repository would require the §27 byte-identical sync rule on every upstream update — guaranteed drift. The pointer skill that routes agents to the global ontologies is likewise out: it is a global asset with its only home in `ryans-agentic-coding-preferences`, and copying it into project repos multiplies a file that drifts the moment its source moves. Agent orientation for this repository is carried entirely by `AGENTS.md`, which points to the Jena MCP servers and the project ontology file directly.
 
+## Why the OpenSSF Scorecard is event-driven only
+
+preferences.md §9 names the OpenSSF Security Scorecard as the best-practice benchmark, so the `scorecard` workflow runs it on every push to the default branch, publishing results for the public badge and uploading SARIF to code scanning. It skips dev-branch pushes and pull requests because the action publishes results only from the default branch, and anything else would be noise. It runs event-driven only — no weekly cron (§9 no-scheduled-CI): supply-chain posture changes with pushes, not with the calendar. `publish_results` is set so the score lands publicly; expect the first score to stay modest until the Renovate app and the remaining repository settings land (see the checklist). The two checks the scorecard flags hardest on young repos — pinned dependencies and token permissions — are already handled at bootstrap by the pinned Renovate digests and the explicit workflow permission blocks.
+
+## Shapes-graph extraction architecture
+
+The first implementation commit fixes the crate's internal split, which follows from `decision-pure-core` and `decision-flyology-rdf`:
+
+- `src/` is the pure SPARK core. `SHACL_Ada.Terms` is the bounded term model: every payload lives in fixed-capacity text (512 characters), so terms are plain records with no heap and no I/O. `SHACL_Ada.Shapes` is the shapes-graph model: node/property shapes, the four target kinds, and the Core constraint parameters as (kind, value, extra) records against published bounds. `gnatprove` proves this core through `proof/spark_core.gpr`, a project that sees only `src/`. The scope restriction is load-bearing: flyology_rdf is not gnatprove-clean (its IRI pooling uses thread-local storage gnatprove rejects), so any proof project that pulls the dependency into its closure fails in phases that walk the whole tree — the proof must be structurally unable to see the dependency.
+- `boundary/` is the adapter, `SHACL_Ada.Rdf` with `SPARK_Mode (Off)`. `Load_Turtle` drives flyology_rdf's event sink into a dataset. `Extract_Shapes` walks the default graph once (named graphs are ignored: a shapes graph is its default graph), creates a shape entry for every node carrying SHACL-vocabulary predicates, marks kinds from `rdf:type sh:NodeShape`/`sh:PropertyShape` and from cross-references (`sh:property`, `sh:node`, `sh:not`, `sh:qualifiedValueShape`, the boolean connectives' list members), and resolves the RDF-list-valued parameters (`sh:in`, `sh:languageIn`, `sh:ignoredProperties`, `sh:and`/`sh:or`/`sh:xone`) in a second pass over recorded list cells — list cells arrive as separate `rdf:first`/`rdf:rest` triples, so resolution can only start after the whole graph is known.
+- Bounds are the contract. A `Shape_Table` is a few megabytes (64 shapes x 16 constraints x bounded terms), so callers heap-allocate it and never put one on a default-size stack. Over-length terms, malformed lists, and table overflow raise `Boundary_Error` rather than truncate silently. Relative IRIs require an explicit base IRI at load time — the vendored corpus uses `<>` and document-relative IRIs throughout, and the flyology parser rejects them without a base.
+
 ## Root-directory budget
 
 §29 targets at most 8 files and 8 directories at the root. This repository intentionally exceeds it: the standards files are the content a library repo needs at its root, and grouping them away would break the §29 convention that they live at the root. Overflow is documented here per §29; additions to the root get weighed against this budget. The `scripts/` directory (vendoring tooling) and `corpora/` (the in-tree corpus) were added against this budget and are each load-bearing: the script keeps re-pinning one command, and the corpus is what makes conformance reproducible.
 
-## GitHub project-settings checklist (applied outside files)
+## GitHub project-settings state (applied outside files)
 
-Settings that cannot be expressed in-repo; apply them on the repository:
+Settings that cannot be expressed in-repo. Applied 2026-09-22 unless noted; the remainder is the open checklist.
 
-1. **Protected branches** — protect `main`: no direct pushes, PRs only from `dev`; require the `pre-commit` and `sast` checks to pass.
-2. **Merge method** — squash merge only; linear history.
-3. **Branch protection on `dev`** — PR-only push policy.
-4. **Renovate** — enable the Renovate GitHub app; the single `renovate.json` needs no changes.
-5. **Secrets** — `OPENROUTER_API_KEY` (or the ocr endpoint key) as a repository secret; nothing else.
-6. **Private vulnerability reporting** — enable the GitHub security tab and private vulnerability reporting (`SECURITY.md` reporting path).
+1. **Ruleset `Protect Main`** (active) — deletions and force pushes blocked on `main`; pull request required (0 required approvals — solo repository, the PR is the gate); linear history; required status checks `pre-commit`, `opengrep`, `ocr`; merge methods restricted to `squash`.
+2. **Ruleset `dev`** (active) — deletions and force pushes blocked; updates open to the operator, who pushes `dev` directly. The gate to `main` is the PR.
+3. **Code-scanning default setup disabled** — GitHub's bundled AI code review requires a Copilot license and failed with 403 on every PR; its CodeQL component only analyzed Actions files. Static analysis is the `sast`/OpenGrep job (§29); Scorecard SARIF flows through the `scorecard` workflow's own upload step.
+4. **Renovate** — pending: enable the Renovate GitHub app; the single `renovate.json` needs no changes.
+5. **Secrets** — pending: `OPENROUTER_API_KEY` (or the ocr endpoint key) as a repository secret; nothing else.
+6. **Private vulnerability reporting** — pending: enable the GitHub security tab and private vulnerability reporting (`SECURITY.md` reporting path).
 7. **Actions permissions** — default token `contents: read`; workflows declare their own least-privilege permission blocks.
 
 ## Rejected alternatives

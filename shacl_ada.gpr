@@ -1,11 +1,14 @@
 --  SPDX-License-Identifier: Apache-2.0
 
+with "flyology_rdf";
+
 library project SHACL_Ada is
-   for Source_Dirs use ("src");
+   for Source_Dirs use ("src", "boundary");
    for Object_Dir use "obj";
    for Library_Name use "shacl_ada";
    for Library_Kind use "static";
    for Library_Dir use "lib";
    for Library_Ali_Dir use "lib/ali";
-   for Library_Interface use ("SHACL_Ada");
+   for Library_Interface use
+     ("SHACL_Ada", "SHACL_Ada.Terms", "SHACL_Ada.Shapes", "SHACL_Ada.Rdf");
 end SHACL_Ada;

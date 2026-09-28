@@ -1,0 +1,15 @@
+name = "shacl_ada_tests"
+description = "Test harness for shacl_ada"
+version = "0.1.0-dev"
+
+authors = ["RyansOpenSourceRice"]
+maintainers = ["RyansOpenSourceRice <81982693-RyansOpenSourceRice@users.noreply.github.com>"]
+maintainers-logins = ["RyansOpenSourceRice"]
+
+executables = ["shapes_tests", "conformance"]
+
+[[depends-on]]
+shacl_ada = "~0.1.0-dev"
+
+[[pins]]
+shacl_ada = { path = ".." }

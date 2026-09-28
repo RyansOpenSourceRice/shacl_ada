@@ -10,6 +10,7 @@ reports/
 
 # Ada / Alire / GNAT build artifacts
 alire/
+config/
 obj/
 bin/
 lib/
