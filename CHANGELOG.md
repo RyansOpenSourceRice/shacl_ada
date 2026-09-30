@@ -4,6 +4,32 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [2026.09.30.2] — 2026-09-30
+
+Conformance corpus milestone: the engine now passes the full vendored W3C core-suite corpus (73 cases), with the semantic fixes that required, and the proof gate restructured around the two context-explosive postconditions.
+
+### Added
+
+- `tests/src/eval_tests.adb` — the corpus runner: one case per suite manifest entry, sibling `*data.ttl`/`*shapes.ttl` loading for multi-file cases, pass/fail per case against the manifest's expected conformance, a per-case `-v` report, and a nonzero exit on failures. Needs a raised stack limit (`ulimit -s 65536`), wired into `scripts/verify.sh` and the `ada` job.
+
+### Fixed
+
+- Engine semantics against the Recommendation, driven by corpus failures: numeric datatype detection (namespace-prefix slice was never equal, so numeric literals were never compared numerically); incomparable min/max operands now report a violation; implicit class targets (a shape whose node is an `rdfs:Class` targets its instances, direct and via `rdfs:subClassOf*`); nested `sh:property` shapes constrain the path values, not the focus node; `sh:lessThan`/`sh:lessThanOrEqual` pairs of incomparable comparands report a violation (the rule now lives in the comparison itself); `sh:uniqueLang` only fires on lexical `true`; `sh:qualifiedValueShapesDisjoint` cross-checks sibling qualified shapes; `sh:deactivated` shapes are skipped.
+
+### Changed
+
+- Two-phase proof gate: the full run may leave unproved checks only inside the two declared instantiated units (`Proof_Eval.Check_Property`, `Proof_Eval.Check_Kind`), which phase 2 re-proves standalone with `--limit-region`; phase 2 must be fully clean. Both gates (`scripts/verify.sh`, `ada` job) also run the corpus runner.
+
+## [2026.09.30.1] — 2026-09-30
+
+Constraint evaluation engine, the second implementation milestone: the SHACL 1.0 Core constraint components evaluated over the data graph, and the proof raised to level 3.
+
+### Added
+
+- `src/shacl_ada-eval.ads/.adb` — generic constraint-evaluation engine: node and property shapes over predicate paths, all Core constraint components, a caller-sized violation table, shape-link recursion bounded by `Max_Depth` (8), a bounded regex subset, and XSD numeric comparison with width-based dominance. No exceptions; pure SPARK.
+- `proof/units/shacl_ada-proofs.ads` — proof instantiation scaffolding sizing the generic graph and violation capacities for gnatprove.
+- `scripts/verify.sh` — local-first gate: build, two-phase proof, tests, and the corpus conformance smoke run.
+
 ## [2026.09.27.1] — 2026-09-27
 
 Shapes-graph parsing, the first implementation milestone: the proved SPARK core, the flyology_rdf boundary adapter, the test crate, and the Ada CI job.

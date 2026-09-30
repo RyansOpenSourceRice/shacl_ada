@@ -10,5 +10,7 @@ library project SHACL_Ada is
    for Library_Dir use "lib";
    for Library_Ali_Dir use "lib/ali";
    for Library_Interface use
-     ("SHACL_Ada", "SHACL_Ada.Terms", "SHACL_Ada.Shapes", "SHACL_Ada.Rdf");
+     ("SHACL_Ada", "SHACL_Ada.Terms", "SHACL_Ada.Shapes",
+      "SHACL_Ada.Data", "SHACL_Ada.Validation", "SHACL_Ada.Eval",
+      "SHACL_Ada.Rdf");
 end SHACL_Ada;

@@ -13,7 +13,7 @@ with SHACL_Ada.Terms;
 package SHACL_Ada.Shapes with SPARK_Mode is
 
    Max_Shapes                 : constant := 64;
-   Max_Targets_Per_Shape      : constant := 8;
+   Max_Targets_Per_Shape      : constant := 16;
    Max_Constraints_Per_Shape  : constant := 16;
 
    type Target_Kind is
@@ -29,7 +29,8 @@ package SHACL_Ada.Shapes with SPARK_Mode is
       Qualified_Value_Shape, Qualified_Shapes_Disjoint,
       Qualified_Min_Count, Qualified_Max_Count,
       Not_Shape, And_Shape, Or_Shape, Xone_Shape,
-      Node_Link, Property_Link);
+      Node_Link, Property_Link,
+      Class_Param, Node_Kind_Param);
 
    type Target is record
       Kind  : Target_Kind := Target_Node;
@@ -57,6 +58,7 @@ package SHACL_Ada.Shapes with SPARK_Mode is
       Target_Count      : Natural range 0 .. Max_Targets_Per_Shape := 0;
       Constraints       : Constraint_Array;
       Constraint_Count  : Natural range 0 .. Max_Constraints_Per_Shape := 0;
+      Deactivated       : Boolean    := False;
    end record;
 
    type Shape_Array is array (1 .. Max_Shapes) of Shape;
