@@ -50,14 +50,22 @@ package SHACL_Ada.Terms with SPARK_Mode is
    function Kind_Of (Value : Term) return Term_Kind;
 
    --  IRI value for Iri terms, blank-node label for Blank_Node terms.
-   function Name_Of (Value : Term) return String;
+   function Name_Of (Value : Term) return String with
+     Post => Name_Of'Result'First = 1
+             and then Name_Of'Result'Last in 0 .. Max_Text_Length;
 
-   function Lexical_Of (Value : Term) return String;
+   function Lexical_Of (Value : Term) return String with
+     Post => Lexical_Of'Result'First = 1
+             and then Lexical_Of'Result'Last in 0 .. Max_Text_Length;
 
-   function Language_Of (Value : Term) return String;
+   function Language_Of (Value : Term) return String with
+     Post => Language_Of'Result'First = 1
+             and then Language_Of'Result'Last in 0 .. Max_Text_Length;
 
    --  Datatype IRI; empty for plain literals.
-   function Datatype_Of (Value : Term) return String;
+   function Datatype_Of (Value : Term) return String with
+     Post => Datatype_Of'Result'First = 1
+             and then Datatype_Of'Result'Last <= Max_Text_Length;
 
 private
 

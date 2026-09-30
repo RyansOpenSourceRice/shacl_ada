@@ -386,6 +386,10 @@ package body SHACL_Ada.Rdf is
                Add_Constraint (Index, Shapes.Unique_Lang, Object);
             elsif Suffix = "datatype" then
                Add_Constraint (Index, Shapes.Datatype_Param, Object);
+            elsif Suffix = "class" then
+               Add_Constraint (Index, Shapes.Class_Param, Object);
+            elsif Suffix = "nodeKind" then
+               Add_Constraint (Index, Shapes.Node_Kind_Param, Object);
             elsif Suffix = "equals" then
                Add_Constraint (Index, Shapes.Equals_Param, Object);
             elsif Suffix = "disjoint" then
@@ -502,6 +506,39 @@ package body SHACL_Ada.Rdf is
          Reset_Scan;
          raise;
    end Extract_Shapes;
+
+   --  Data-graph extraction -----------------------------------------------
+
+   procedure Extract_Data
+     (Graph  : Flyology_RDF.Datasets.Dataset;
+      Result : out Data.Graph)
+   is
+      procedure Visit (Statement : Flyology_RDF.Quads.Quad) is
+         use type Flyology_RDF.Quads.Graph_Name_Kind;
+         G : constant Flyology_RDF.Quads.Graph_Name :=
+           Flyology_RDF.Quads.Graph (Statement);
+         P_Name : constant String :=
+           Flyology_RDF.IRIs.To_UTF_8 (Flyology_RDF.Quads.Predicate (Statement));
+      begin
+         --  The data graph is the default graph; named graphs are ignored.
+         if Flyology_RDF.Quads.Kind (G)
+              /= Flyology_RDF.Quads.Default_Graph_Kind
+         then
+            return;
+         end if;
+         if Data.Full (Result) then
+            raise Boundary_Error;
+         end if;
+         Data.Insert
+           (Result,
+            (Subject   => Convert (Flyology_RDF.Quads.Subject (Statement)),
+             Predicate => SHACL_Ada.Terms.Make_Iri (P_Name),
+             Object    => Convert (Flyology_RDF.Quads.Object (Statement))));
+      end Visit;
+   begin
+      Result := (Count => 0, List => (others => <>));
+      Flyology_RDF.Datasets.Iterate (Graph, Visit'Access);
+   end Extract_Data;
 
    --  Turtle loading ------------------------------------------------------------
 

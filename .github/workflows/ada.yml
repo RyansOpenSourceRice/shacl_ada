@@ -40,7 +40,21 @@ jobs:
           echo "$HOME/.local/opt/gnatprove-x86_64-linux-16.1.0-1/bin" >> "$GITHUB_PATH"
 
       - name: Prove the SPARK core
-        run: gnatprove -P proof/spark_core.gpr -U --level=1 -j0
+        #  Two-phase proof: the full run proves every check; two large
+        #  postconditions (Check_Connectives, Check_Qualified) time out
+        #  in the full-run context and are re-proven standalone with
+        #  --limit-region, the gnatprove-documented workflow for
+        #  context-explosion cases. Both phases must report zero
+        #  unproved checks.
+        run: |
+          mkdir -p proof/obj
+          gnatprove -P proof/spark_core.gpr -U --level=3 --timeout=300 -j2 \
+            > proof/obj/proof-phase1.log
+          gnatprove -P proof/spark_core.gpr -U --level=3 --timeout=300 \
+            --limit-region=shacl_ada-eval.ads:103:17 \
+            --limit-region=shacl_ada-eval.ads:126:17 \
+            > proof/obj/proof-phase2.log
+          ! grep -qE "medium: |high: " proof/obj/proof-phase1.log proof/obj/proof-phase2.log
 
       - name: Build and run the tests
         run: |

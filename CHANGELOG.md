@@ -4,6 +4,16 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [2026.09.30.1] — 2026-09-30
+
+Constraint evaluation engine, the second implementation milestone: the SHACL 1.0 Core constraint components evaluated over the data graph, and the proof raised to level 3.
+
+### Added
+
+- `src/shacl_ada-eval.ads/.adb` — generic constraint-evaluation engine: node and property shapes over predicate paths, all Core constraint components, a caller-sized violation table, shape-link recursion bounded by `Max_Depth` (8), a bounded regex subset, and XSD numeric comparison with width-based dominance. No exceptions; pure SPARK.
+- `proof/units/shacl_ada-proofs.ads` — proof instantiation scaffolding sizing the generic graph and violation capacities for gnatprove.
+- `scripts/verify.sh` — local-first gate: build, two-phase proof, tests, and the corpus conformance smoke run.
+
 ## [2026.09.27.1] — 2026-09-27
 
 Shapes-graph parsing, the first implementation milestone: the proved SPARK core, the flyology_rdf boundary adapter, the test crate, and the Ada CI job.

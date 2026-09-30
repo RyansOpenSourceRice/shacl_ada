@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
 [![Version](https://img.shields.io/badge/version-2026.09.27.1-blue?style=flat-square)](CHANGELOG.md)
-[![Status](https://img.shields.io/badge/status-shapes%20--%20graph%20parsing%20landed-yellow?style=flat-square)](ROADMAP.md)
+[![Status](https://img.shields.io/badge/status-constraint%20engine%20landed-yellow?style=flat-square)](ROADMAP.md)
 [![Pre-commit](https://img.shields.io/badge/pre--commit-gitleaks%20%7C%20cspell%20%7C%20Vale%20%7C%20OpenGrep%20%7C%20ocr-purple?style=flat-square)](.pre-commit-config.yaml)
 [![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions%20%7C%20pre--commit%20gate%20%7C%20SAST-orange?style=flat-square)](.github/workflows/pre-commit.yml)
 [![Renovate](https://img.shields.io/badge/Renovate-one%20config%20%7C%20pinned%20digests-green?style=flat-square)](renovate.json)
@@ -14,7 +14,7 @@ W3C SHACL 1.0 Core validator in SPARK for Ada: shapes-graph parsing, constraint 
 
 ## Status
 
-Shapes-graph parsing is implemented. The pure SPARK core (`SHACL_Ada.Terms`, `SHACL_Ada.Shapes`) is proved by gnatprove (all 33 checks at level 1) through `proof/spark_core.gpr`; the `boundary/` adapter loads Turtle via [`flyology_rdf`](https://github.com/flyology-ada/flyology-rdf) and extracts shapes, targets, and Core constraint parameters; the test crate runs extraction assertions and a corpus smoke runner; the `ada` CI job builds, proves, and tests. Constraint evaluation is next — the build order lives in `ROADMAP.md` (constraint evaluation → report vocabulary → SPARK Silver → Alire index publication).
+Constraint evaluation is implemented: the engine (`SHACL_Ada.Eval`) evaluates node and property shapes over predicate paths and records violations into a caller-sized table, with shape-link recursion bounded by `Max_Depth`. The whole `src/` core (`SHACL_Ada.Terms`, `SHACL_Ada.Shapes`, `SHACL_Ada.Eval`) is proved by gnatprove at level 3 through `proof/spark_core.gpr` (two-phase: the full run plus `--limit-region` re-proof of two context-explosive postconditions); `scripts/verify.sh` runs the same gate locally before every push. The `boundary/` adapter loads Turtle via [`flyology_rdf`](https://github.com/flyology-ada/flyology-rdf) and extracts shapes, targets, and Core constraint parameters; the test crate runs extraction assertions and a corpus smoke runner. Next — the build order lives in `ROADMAP.md` (path expressions → report vocabulary → SPARK Silver → Alire index publication).
 
 ## What it will do
 
