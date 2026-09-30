@@ -411,6 +411,10 @@ package body SHACL_Ada.Rdf is
                Add_Constraint (Index, Shapes.Qualified_Min_Count, Object);
             elsif Suffix = "qualifiedMaxCount" then
                Add_Constraint (Index, Shapes.Qualified_Max_Count, Object);
+            elsif Suffix = "deactivated" then
+               if SHACL_Ada.Terms.Lexical_Of (Object) = "true" then
+                  Table_Object.List (Index).Deactivated := True;
+               end if;
             end if;
             --  Other SHACL vocabulary (sh:name, sh:message, sh:severity,
             --  sh:order, sh:deactivated, sh:description, sh:group,

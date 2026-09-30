@@ -30,7 +30,7 @@
 | `corpora/SHA256SUMS` | Integrity manifest over the vendored tree (generated) |
 | `corpora/data-shapes-test-suite/tests/` | Vendored W3C suite data — verbatim upstream |
 | `scripts/vendor-corpus.sh` | Vendoring/refresh script: `--ref <sha|tag>` to re-pin, `--verify` for integrity |
-| `scripts/verify.sh` | Local-first gate: build, two-phase proof, tests, conformance smoke |
+| `scripts/verify.sh` | Local-first gate: build, two-phase proof, tests, conformance smoke, corpus suite |
 | `CHANGELOG.md` | Keep a Changelog, CalVer `YYYY.MM.DD.N` |
 | `CONTRIBUTING.md` | Workflow, gate, AI-contribution rules |
 | `MAINTAINERS.md` | Scope, ownership, non-goals |
@@ -76,7 +76,7 @@ Workflows run in parallel, all `contents: read`, concurrency-cancelled per ref:
 | `review` | PRs only | `ocr review` against the PR base; skips itself without `OPENROUTER_API_KEY`; `continue-on-error: true` |
 | `corpus` | push/PR touching `corpora/**` or the vendor script; `workflow_dispatch` | PRs/pushes: run `vendor-corpus.sh --verify` (integrity). Dispatch: compare pinned commit with the upstream tip and report drift — no scheduled jobs (§9) |
 | `scorecard` | push to `main`, `workflow_dispatch` | OpenSSF Scorecard analysis; SARIF to code scanning and results published for the public badge. Event-driven only — no scheduled jobs (§9). No PR runs: the action publishes results only on push events |
-| `ada` | push to `main`/`dev`, PRs | `alr build` over the crate, the two-phase `gnatprove -U --level=3 --timeout=300` proof over `proof/spark_core.gpr` (full run plus `--limit-region` re-proof of two context-explosive postconditions; both phases must prove clean), `shapes_tests`, and the `conformance` smoke run against the vendored corpus |
+| `ada` | push to `main`/`dev`, PRs | `alr build` over the crate, the two-phase `gnatprove -U --level=3 --timeout=300` proof over `proof/spark_core.gpr` (full run plus `--limit-region` re-proof of two context-explosive postconditions; phase 1 tolerates unproved checks only inside those two instantiated units, phase 2 proves clean), `shapes_tests`, the `conformance` smoke run, and the `eval_tests` corpus suite over the vendored corpus |
 
 Skipped-by-design jobs (documented per §29, added when they apply): `container` (no container ships — OS-free library) and `dynamic` (no runtime to probe).
 

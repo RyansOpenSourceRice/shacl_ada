@@ -6,7 +6,7 @@ authors = ["RyansOpenSourceRice"]
 maintainers = ["RyansOpenSourceRice <81982693-RyansOpenSourceRice@users.noreply.github.com>"]
 maintainers-logins = ["RyansOpenSourceRice"]
 
-executables = ["shapes_tests", "conformance"]
+executables = ["shapes_tests", "conformance", "eval_tests"]
 
 [[depends-on]]
 shacl_ada = "~0.1.0-dev"
