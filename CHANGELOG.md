@@ -4,6 +4,24 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [2026.10.06.2] — 2026-10-06
+
+Path expressions: property shapes now evaluate the full SHACL 1.0 Core path grammar (§6); the corpus grows to 86 cases with all 13 `core/path` suite cases passing.
+
+### Added
+
+- `SHACL_Ada.Shapes` — the bounded path AST: `Path_Kind` (predicate, inverse, sequence, alternative, zero-or-one, zero-or-more, one-or-more), a shared path-node array on `Shape_Table` built through `Add_Path_Node` (children precede parents, so tables are acyclic by construction), and `Path_Root`/`Path_Summary` on `Shape` replacing the bare predicate-path term.
+- `boundary/shacl_ada-rdf.adb` — path extraction: the five path predicates record their pairs as they arrive, every `sh:path` defers to `Finalize`, and the resolution folds RDF lists into nested binary nodes. A list cell wins over sibling path predicates (the suite's strange-path semantics); ill-formed structures degrade to an invalid path instead of failing the extraction, while bound overflows still raise `Boundary_Error`.
+- `SHACL_Ada.Eval` — the fuel-bounded worklist path walker (`Path_Values`): work items carry a node plus a two-slot continuation chain, so sequences, alternatives, and cardinality closures compose without deep recursion; distinct value nodes are recorded once and `Overflow` reports budget exhaustion. The generic gains the `Max_Path_Values` formal. `sh:closed` now admits the leaf predicates of compound paths, and sibling `sh:qualifiedValueShapesDisjoint` compares paths structurally.
+- `tests/src/eval_tests.adb` — the 13 `core/path` suite cases (86 total).
+- `tests/src/shapes_tests.adb` — compound-path extraction assertions: sequence of predicate and inverse, a three-way alternative, and the three cardinality forms.
+- `SPECIFICATION.md` — the conformance-deviations section: single-predicate `sh:inversePath`, the step-fuel semantics, ill-formed paths validating nothing, the bounded `sh:pattern` regex subset, and approximate numeric comparison past 18 digits.
+
+### Changed
+
+- `scripts/verify.sh`, `.github/workflows/ada.yml` — the two-phase proof's `--limit-region` coordinates move with the engine spec (`shacl_ada-eval.ads:177:4` and `:199:4`).
+- `README.md`, `ROADMAP.md`, `project.ontology.ttl` — status, build order, and milestone state for the landed path milestone.
+
 ## [2026.10.06.1] — 2026-10-06
 
 ### Fixed

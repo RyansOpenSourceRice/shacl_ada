@@ -109,6 +109,16 @@ Skipped-by-design jobs (documented per §29, added when they apply): `container`
 
 W3C SHACL 1.0 Recommendation — shapes graph semantics, constraint components, and validation-report vocabulary as published 20 July 2017. Deviations, if any, are recorded in this file at implementation time, not silently absorbed.
 
+## Conformance deviations
+
+Recorded deviations, each also documented where the code carries it:
+
+- **`sh:inversePath` accepts a single predicate argument.** The Recommendation permits any path as the argument; a compound argument evaluates as yielding no values. The bounded path walker does not carry the candidate enumeration a general inversion needs, and no suite case exercises one.
+- **Path evaluation runs under a step fuel.** Each path computation processes at most `Max_Path_Work` (512) work items; a path expanding past the fuel evaluates over the visited prefix, and the computation's `Overflow` flag reports exhaustion. Cyclic data terminates on the fuel, not on cycle detection.
+- **An ill-formed path validates nothing.** A property shape whose `sh:path` does not resolve into a path expression is treated as validating nothing rather than as a shapes-graph failure; extraction does not raise for it.
+- **`sh:pattern` implements a bounded regex subset** — literals, `.`, character classes with ranges and negation, backslash escapes, the `*`/`+`/`?` quantifiers, `^`/`$` anchors, and the case-insensitivity flag — not the full XSD regular-expression surface.
+- **XSD numeric comparison approximates** beyond 18 significant mantissa digits and caps exponents at `2**20`; the corpus and ordinary datasets compare exactly.
+
 ## Versioning
 
 - Repo releases: CalVer `YYYY.MM.DD.N` (preferences.md §9); the `CHANGELOG.md` carries the versions.

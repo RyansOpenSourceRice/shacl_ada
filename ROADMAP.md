@@ -8,7 +8,6 @@ shacl_ada becomes the dependable Ada/SPARK building block for SHACL validation: 
 
 ## Planned
 
-- **SHACL path expressions** — inverse, sequence, alternative, and cardinality path expressions, needing a bounded path AST in the shapes model. Split out of the engine milestone for complexity.
 - **Validation-report vocabulary** — `sh:ValidationReport`/`sh:ValidationResult` output with severity, focus/value nodes, paths, and messages.
 - **SPARK Silver proofs** — gnatprove over the validator core: absence of runtime errors on the proved units.
 - **Alire index publication** — submit the crate to the community index once Core is usable from a linkable build.
@@ -27,6 +26,7 @@ shacl_ada becomes the dependable Ada/SPARK building block for SHACL validation: 
 
 ## Recently completed
 
+- **2026.10.06** — SHACL path expressions: the full Core path grammar (§6) — predicate, inverse, sequence, alternative, and the zero-or-one/zero-or-more/one-or-more forms — as a bounded path AST in the shapes model, extracted by the boundary adapter (a list cell wins over sibling path predicates, matching the suite's strange-path cases), and evaluated by a fuel-bounded worklist walker with deduplicated value sets. All 13 vendored `core/path` suite cases pass; the corpus total is 86. See `CHANGELOG.md` [2026.10.06.2].
 - **2026.09.30** — constraint evaluation engine: the Core constraint components evaluated per the Recommendation's semantics (predicate paths; recursion bounded by `Max_Depth`), a caller-sized violation table, and the proof raised to level 3 (two-phase: full run plus `--limit-region` re-proof of two context-explosive postconditions). Followed the same day by the corpus milestone: the engine passes all 73 vendored W3C core-suite cases, with the semantic fixes that required, and the corpus runner wired into the local gate. See `CHANGELOG.md` [2026.09.30.1] and [2026.09.30.2].
 - **2026.09.27** — shapes-graph parsing: pure SPARK core (`SHACL_Ada.Terms`, `SHACL_Ada.Shapes`) proved by gnatprove (33 checks, level 1), `flyology_rdf` boundary adapter for Turtle loading and extraction, test crate (`shapes_tests`, `conformance` smoke runner over the vendored corpus), and the `ada` CI job (`alr build` + gnatprove + tests). See `CHANGELOG.md` [2026.09.27.1].
 - **2026.09.22** — bootstrap: standards files, pre-commit gate, GitHub Actions pipeline, issue/PR templates, Alire crate scaffold, project ontology with SHACL shapes, corpus pin policy, pointer skill. See `CHANGELOG.md` [2026.09.22.1].

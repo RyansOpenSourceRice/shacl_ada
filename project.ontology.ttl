@@ -267,7 +267,7 @@ onto:milestone-constraint-engine a onto:Milestone ;
 onto:milestone-path-expressions a onto:Milestone ;
     onto:name "SHACL path expressions" ;
     onto:description "Extend property-shape evaluation beyond predicate paths: inverse, sequence, alternative, and zero-or-one/zero-or-more/one-or-more path expressions, with a bounded path AST in the shapes model. Split out of the engine milestone for complexity." ;
-    onto:status "not-started" .
+    onto:status "complete" .
 
 onto:milestone-report-vocabulary a onto:Milestone ;
     onto:name "Validation-report vocabulary" ;

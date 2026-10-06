@@ -1,11 +1,16 @@
 --  SPDX-License-Identifier: Apache-2.0
+--
+--  Constraint evaluation engine of the SPARK core. Property shapes
+--  evaluate the full SHACL 1.0 Core path grammar (§6) through a
+--  bounded worklist walker; an ill-formed path validates nothing.
 
 package body SHACL_Ada.Eval with SPARK_Mode is
 
-   use type Terms.Term;
-   use type Terms.Term_Kind;
-   use type Shapes.Constraint_Kind;
-   use type Validation.Violation;
+    use type Terms.Term;
+    use type Terms.Term_Kind;
+    use type Shapes.Constraint_Kind;
+    use type Shapes.Path_Kind;
+    use type Validation.Violation;
 
    Rdf_Ns        : constant String := "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
    Rdfs_Ns       : constant String := "http://www.w3.org/2000/01/rdf-schema#";
@@ -105,29 +110,272 @@ package body SHACL_Ada.Eval with SPARK_Mode is
       return False;
    end Subclass_Reaches;
 
-   --  SHACL instance: rdf:type Class, or rdf:type of a subclass thereof.
-   function Is_Instance
-     (Graph : Data.Graph; Node, Class : Terms.Term) return Boolean
+    --  SHACL instance: rdf:type Class, or rdf:type of a subclass thereof.
+    function Is_Instance
+      (Graph : Data.Graph; Node, Class : Terms.Term) return Boolean
+    is
+    begin
+       for I in 1 .. Graph.Count loop
+          declare
+             T : constant Data.Triple := Data.Element (Graph, I);
+          begin
+             if Same (T.Subject, Node)
+               and then Same (T.Predicate, Rdf_Type_Term)
+             then
+                if Same (T.Object, Class) then
+                   return True;
+                end if;
+                if Subclass_Reaches (Graph, T.Object, Class, Max_Depth) then
+                   return True;
+                end if;
+             end if;
+          end;
+       end loop;
+       return False;
+    end Is_Instance;
+
+   --  ------------------------------------------------------------------
+   --  Path evaluation (SHACL 1.0 Core §6)
+   --  ------------------------------------------------------------------
+
+   --  Worklist window and step fuel for one path computation. The
+   --  window slides without wraparound: total pushes are bounded by
+   --  the fuel, so no item is ever overwritten.
+   procedure Work_Push
+     (Node : Terms.Term; Step, Next, Next2 : Natural)
    is
    begin
-      for I in 1 .. Graph.Count loop
-         declare
-            T : constant Data.Triple := Data.Element (Graph, I);
-         begin
-            if Same (T.Subject, Node)
-              and then Same (T.Predicate, Rdf_Type_Term)
-            then
-               if Same (T.Object, Class) then
-                  return True;
-               end if;
-               if Subclass_Reaches (Graph, T.Object, Class, Max_Depth) then
-                  return True;
-               end if;
-            end if;
-         end;
+      if Work.Last >= Max_Path_Work or else Work.Steps = 0 then
+         Work.Exhausted := True;
+      else
+         Work.Last := Work.Last + 1;
+         Work.List (Work.Last) :=
+           (Node => Node, Step => Step, Next => Next, Next2 => Next2);
+      end if;
+   end Work_Push;
+
+   procedure Work_Pop (Item : out Work_Item) with
+     Pre  => Work.First <= Work.Last,
+     Post => Work.First = Work.First'Old + 1
+   is
+   begin
+      Item := Work.List (Work.First);
+      Work.First := Work.First + 1;
+   end Work_Pop;
+
+   procedure Append_Value (Values : in out Value_Set; Item : Terms.Term) is
+      Found : Boolean := False;
+   begin
+      for I in 1 .. Values.Count loop
+         exit when Found;
+         if Same (Values.List (I), Item) then
+            Found := True;
+         end if;
       end loop;
-      return False;
-   end Is_Instance;
+      if not Found then
+         if Values.Count < Max_Path_Values then
+            Values.Count := Values.Count + 1;
+            Values.List (Values.Count) := Item;
+         else
+            Values.Overflow := True;
+         end if;
+      end if;
+   end Append_Value;
+
+   --  The distinct value nodes the path with root index Root yields
+   --  from From over Graph. The walker processes (node, path-node)
+   --  pairs from a sliding worklist; every non-terminal expansion
+   --  decrements the fuel, which bounds the walker against cyclic
+   --  data and the branching of alternatives. When the fuel or the
+   --  worklist runs out, evaluation proceeds over the recorded prefix
+   --  and Overflow reports it. An ill-formed root (zero, or an index
+   --  past the table) yields the empty set.
+   procedure Path_Values
+     (From      : Terms.Term;
+      Root      : Natural;
+      Graph     : Data.Graph;
+      Shape_Set : Shapes.Shape_Table;
+      Values    : out Value_Set)
+   is
+      Item : Work_Item;
+   begin
+      Values := (Count => 0, Overflow => False,
+                 List  => (others => Terms.Empty));
+      Work := (List      => (others => <>),
+               First     => 1,
+               Last      => 0,
+               Steps     => Max_Path_Work,
+               Exhausted => False);
+      Work_Push (From, Root, 0, 0);
+      while Work.First <= Work.Last
+        and then not Work.Exhausted
+      loop
+         Work_Pop (Item);
+         if Work.Steps = 0 then
+            Work.Exhausted := True;
+         else
+            Work.Steps := Work.Steps - 1;
+            if Item.Step = 0 then
+               --  A value of the walked prefix continues with the
+               --  remaining chain, or is final.
+               if Item.Next = 0 then
+                  Append_Value (Values, Item.Node);
+               else
+                  Work_Push (Item.Node, Item.Next, Item.Next2, 0);
+               end if;
+            elsif Item.Step <= Shape_Set.Path_Count then
+               declare
+                  Desc : constant Shapes.Path_Node :=
+                    Shape_Set.Paths (Item.Step);
+               begin
+                  case Desc.Kind is
+                     when Shapes.Path_Predicate =>
+                        for I in 1 .. Graph.Count loop
+                           declare
+                              T : constant Data.Triple :=
+                                Data.Element (Graph, I);
+                           begin
+                              if Same (T.Subject, Item.Node)
+                                and then Same (T.Predicate, Desc.Pred)
+                              then
+                                 Work_Push (T.Object, Item.Next, Item.Next2, 0);
+                              end if;
+                           end;
+                        end loop;
+                     when Shapes.Path_Inverse =>
+                        --  The inverse of a single predicate step. The
+                        --  general inverse of a compound subpath is
+                        --  out of scope (see SPECIFICATION.md).
+                        if Desc.Left in 1 .. Shape_Set.Path_Count
+                          and then Shape_Set.Paths (Desc.Left).Kind
+                                     = Shapes.Path_Predicate
+                        then
+                           for I in 1 .. Graph.Count loop
+                              declare
+                                 T : constant Data.Triple :=
+                                   Data.Element (Graph, I);
+                              begin
+                                 if Same (T.Object, Item.Node)
+                                   and then Same
+                                              (T.Predicate,
+                                               Shape_Set.Paths
+                                                 (Desc.Left).Pred)
+                                 then
+                                   Work_Push
+                                     (T.Subject, Item.Next, Item.Next2, 0);
+                                 end if;
+                              end;
+                           end loop;
+                        end if;
+                     when Shapes.Path_Sequence =>
+                        if Desc.Left in 1 .. Shape_Set.Path_Count then
+                           Work_Push
+                             (Item.Node, Desc.Left, Desc.Right, Item.Next);
+                        end if;
+                     when Shapes.Path_Alternative =>
+                        if Desc.Left in 1 .. Shape_Set.Path_Count then
+                           Work_Push
+                             (Item.Node, Desc.Left, Item.Next, Item.Next2);
+                        end if;
+                        if Desc.Right in 1 .. Shape_Set.Path_Count then
+                           Work_Push
+                             (Item.Node, Desc.Right, Item.Next, Item.Next2);
+                        end if;
+                     when Shapes.Path_Zero_Or_One =>
+                        Work_Push (Item.Node, Item.Next, Item.Next2, 0);
+                        if Desc.Left in 1 .. Shape_Set.Path_Count then
+                           Work_Push
+                             (Item.Node, Desc.Left, Item.Next, Item.Next2);
+                        end if;
+                     when Shapes.Path_Zero_Or_More =>
+                        Work_Push (Item.Node, Item.Next, Item.Next2, 0);
+                        if Desc.Left in 1 .. Shape_Set.Path_Count then
+                           Work_Push
+                             (Item.Node, Desc.Left, Item.Step, Item.Next);
+                        end if;
+                     when Shapes.Path_One_Or_More =>
+                        if Desc.Left in 1 .. Shape_Set.Path_Count then
+                           Work_Push
+                             (Item.Node, Desc.Left, Item.Step, Item.Next);
+                        end if;
+                  end case;
+               end;
+            end if;
+         end if;
+      end loop;
+      if Work.Exhausted then
+         Values.Overflow := True;
+      end if;
+   end Path_Values;
+
+   --  True when Want is a leaf predicate of the path rooted at Root.
+   --  Depth bounds the walk over malformed tables whose child links
+   --  could cycle; it never binds for well-formed tables, where every
+   --  child precedes its parent.
+   function Path_Has_Predicate
+     (Shape_Set : Shapes.Shape_Table;
+      Root      : Natural;
+      Want      : Terms.Term;
+      Depth     : Natural) return Boolean
+   is
+   begin
+      if Depth = 0
+        or else Root = 0
+        or else Root > Shape_Set.Path_Count
+      then
+         return False;
+      end if;
+      declare
+         Desc : constant Shapes.Path_Node := Shape_Set.Paths (Root);
+      begin
+         case Desc.Kind is
+            when Shapes.Path_Predicate =>
+               return Same (Desc.Pred, Want);
+            when Shapes.Path_Inverse | Shapes.Path_Zero_Or_One
+               | Shapes.Path_Zero_Or_More | Shapes.Path_One_Or_More =>
+               return Path_Has_Predicate
+                        (Shape_Set, Desc.Left, Want, Depth - 1);
+            when Shapes.Path_Sequence | Shapes.Path_Alternative =>
+               return Path_Has_Predicate
+                        (Shape_Set, Desc.Left, Want, Depth - 1)
+                      or else Path_Has_Predicate
+                                 (Shape_Set, Desc.Right, Want, Depth - 1);
+         end case;
+      end;
+   end Path_Has_Predicate;
+
+   --  Structural equality of the paths rooted at A and B.
+   function Same_Path
+     (Shape_Set : Shapes.Shape_Table; A, B : Natural; Depth : Natural)
+      return Boolean
+   is
+   begin
+      if Depth = 0 then
+         return False;
+      end if;
+      if A = 0 or else B = 0 then
+         return A = B;
+      end if;
+      if A > Shape_Set.Path_Count or else B > Shape_Set.Path_Count then
+         return False;
+      end if;
+      declare
+         Da : constant Shapes.Path_Node := Shape_Set.Paths (A);
+         Db : constant Shapes.Path_Node := Shape_Set.Paths (B);
+         Left_Same : constant Boolean :=
+           (if Da.Left = Db.Left then True
+            elsif Da.Left = 0 or else Db.Left = 0 then False
+            else Same_Path (Shape_Set, Da.Left, Db.Left, Depth - 1));
+         Right_Same : constant Boolean :=
+           (if Da.Right = Db.Right then True
+            elsif Da.Right = 0 or else Db.Right = 0 then False
+            else Same_Path (Shape_Set, Da.Right, Db.Right, Depth - 1));
+      begin
+         return Da.Kind = Db.Kind
+                and then Same (Da.Pred, Db.Pred)
+                and then Left_Same and then Right_Same;
+      end;
+   end Same_Path;
 
    --  ------------------------------------------------------------------
    --  Small string helpers
@@ -785,7 +1033,7 @@ package body SHACL_Ada.Eval with SPARK_Mode is
               (Target,
                (Focus_Node   => Focus,
                 Value_Node   => Value,
-                Path         => Shape.Path,
+                Path         => Shape.Path_Summary,
                 Source_Shape => Shape.Node,
                 Component    => Component));
          end if;
@@ -1218,13 +1466,16 @@ package body SHACL_Ada.Eval with SPARK_Mode is
                                  then
                                     Allowed := True;
                                  elsif C.Kind = Shapes.Property_Link then
-                                    Ref := Shapes.Find (Shape_Set, C.Value);
-                                    if Ref > 0
-                                      and then Shape_Set.List (Ref).Has_Path
-                                      and then Same
-                                                 (Shape_Set.List (Ref).Path,
-                                                  Stmt.Predicate)
-                                    then
+                                     Ref := Shapes.Find (Shape_Set, C.Value);
+                                     if Ref > 0
+                                       and then Shape_Set.List (Ref).Has_Path
+                                       and then Path_Has_Predicate
+                                                  (Shape_Set,
+                                                   Shape_Set.List
+                                                     (Ref).Path_Root,
+                                                   Stmt.Predicate,
+                                                   Path_Depth_Limit)
+                                     then
                                        Allowed := True;
                                     end if;
                                  end if;
@@ -1337,20 +1588,21 @@ package body SHACL_Ada.Eval with SPARK_Mode is
    --  Qualified cardinality: how many value nodes conform to the
    --  referenced shape.
    procedure Check_Qualified
-     (Shape     : Shapes.Shape;
-      Focus     : Terms.Term;
-      Graph     : Data.Graph;
-      Shape_Set : Shapes.Shape_Table;
-      Depth     : Natural;
-      Count     : Natural;
-      Target    : in out Violation_Table;
-      Emit      : Boolean;
-      Ok        : in out Boolean)
-   is
-      Has_Min, Has_Max : Boolean := False;
-      Q_Min, Q_Max : Natural := 0;
-      Ref_Node : Terms.Term := Terms.Empty;
-   begin
+      (Shape     : Shapes.Shape;
+       Focus     : Terms.Term;
+       Graph     : Data.Graph;
+       Shape_Set : Shapes.Shape_Table;
+       Values    : Value_Set;
+       Depth     : Natural;
+       Target    : in out Violation_Table;
+       Emit      : Boolean;
+       Ok        : in out Boolean)
+    is
+       Has_Min, Has_Max : Boolean := False;
+       Q_Min, Q_Max : Natural := 0;
+       Ref_Node : Terms.Term := Terms.Empty;
+       Count : constant Natural := Values.Count;
+    begin
       for Position in 1 .. Shape.Constraint_Count loop
          declare
             C : constant Shapes.Constraint := Shape.Constraints (Position);
@@ -1381,16 +1633,16 @@ package body SHACL_Ada.Eval with SPARK_Mode is
                   pragma Loop_Invariant
                     (Conforming <= I - 1
                      and then Target.Count >= Target'Loop_Entry.Count);
-                  declare
-                     V_Ok : Boolean := True;
-                  begin
-                     Check_Node
-                       (Nth_Object (Graph, Focus, Shape.Path, I), Ref,
-                        Graph, Shape_Set, Depth + 1, Target, False, V_Ok);
-                     if V_Ok then
-                        Conforming := Conforming + 1;
-                     end if;
-                  end;
+                   declare
+                      V_Ok : Boolean := True;
+                   begin
+                      Check_Node
+                        (Values.List (I), Ref,
+                         Graph, Shape_Set, Depth + 1, Target, False, V_Ok);
+                      if V_Ok then
+                         Conforming := Conforming + 1;
+                      end if;
+                   end;
                end loop;
             end if;
             if Has_Min then
@@ -1437,10 +1689,16 @@ package body SHACL_Ada.Eval with SPARK_Mode is
                         Sib_Ref      : Terms.Term := Terms.Empty;
                         Sib_Disjoint : Boolean := False;
                      begin
-                        if not Same (Sibling.Node, Shape.Node)
-                          and then Sibling.Has_Path
-                          and then Same (Sibling.Path, Shape.Path)
-                        then
+                         if not Same (Sibling.Node, Shape.Node)
+                           and then Sibling.Has_Path
+                           and then Shape.Has_Path
+                           and then Shape.Path_Root > 0
+                           and then Same_Path
+                                      (Shape_Set,
+                                       Sibling.Path_Root,
+                                       Shape.Path_Root,
+                                       Path_Depth_Limit)
+                         then
                            for Position in 1 .. Sibling.Constraint_Count
                            loop
                               declare
@@ -1473,11 +1731,9 @@ package body SHACL_Ada.Eval with SPARK_Mode is
                                        pragma Loop_Invariant
                                          (Target.Count
                                           >= Target'Loop_Entry.Count);
-                                       declare
-                                          V    : constant Terms.Term :=
-                                            Nth_Object
-                                              (Graph, Focus,
-                                               Shape.Path, I);
+                                        declare
+                                           V    : constant Terms.Term :=
+                                             Values.List (I);
                                           A_Ok : Boolean := True;
                                           B_Ok : Boolean := True;
                                        begin
@@ -1511,23 +1767,36 @@ package body SHACL_Ada.Eval with SPARK_Mode is
    end Check_Qualified;
 
    procedure Check_Property
-      (Focus  : Terms.Term;
-       Idx    : Positive;
-       Graph  : Data.Graph;
-       Shape_Set : Shapes.Shape_Table;
-       Depth  : Natural;
-       Target : in out Violation_Table;
-       Emit   : Boolean;
-       Ok     : out Boolean)
-   is
-      Shape  : constant Shapes.Shape := Shape_Set.List (Idx);
-      Count  : constant Natural := Value_Count (Graph, Focus, Shape.Path);
-      All_Ok : Boolean := True;
-   begin
-      Ok := True;
-      if Depth >= Max_Depth then
-         return;
-      end if;
+       (Focus  : Terms.Term;
+        Idx    : Positive;
+        Graph  : Data.Graph;
+        Shape_Set : Shapes.Shape_Table;
+        Depth  : Natural;
+        Target : in out Violation_Table;
+        Emit   : Boolean;
+        Ok     : out Boolean)
+    is
+       Shape  : constant Shapes.Shape := Shape_Set.List (Idx);
+       Values : Value_Set;
+       Count  : Natural;
+       All_Ok : Boolean := True;
+    begin
+       Ok := True;
+       if Depth >= Max_Depth then
+          return;
+       end if;
+
+       --  An ill-formed path (sh:path present but the expression did
+       --  not build, or a root past the table) validates nothing.
+       if not Shape.Has_Path
+         or else Shape.Path_Root = 0
+         or else Shape.Path_Root > Shape_Set.Path_Count
+       then
+          return;
+       end if;
+
+       Path_Values (Focus, Shape.Path_Root, Graph, Shape_Set, Values);
+       Count := Values.Count;
 
       for Position in 1 .. Shape.Constraint_Count loop
          pragma Loop_Invariant (Target.Count >= Target'Loop_Entry.Count);
@@ -1567,11 +1836,9 @@ package body SHACL_Ada.Eval with SPARK_Mode is
                for J in I + 1 .. Count loop
                   pragma Loop_Invariant
                     (Target.Count >= Target'Loop_Entry.Count);
-                  declare
-                     A : constant Terms.Term :=
-                       Nth_Object (Graph, Focus, Shape.Path, I);
-                     B : constant Terms.Term :=
-                       Nth_Object (Graph, Focus, Shape.Path, J);
+                   declare
+                      A : constant Terms.Term := Values.List (I);
+                      B : constant Terms.Term := Values.List (J);
                   begin
                      if Terms.Kind_Of (A) = Terms.Literal
                        and then Terms.Kind_Of (B) = Terms.Literal
@@ -1596,13 +1863,12 @@ package body SHACL_Ada.Eval with SPARK_Mode is
             C : constant Shapes.Constraint := Shape.Constraints (Position);
             Found : Boolean := False;
          begin
-            if C.Kind = Shapes.Has_Value_Param then
-               for I in 1 .. Count loop
-                  if Same (Nth_Object (Graph, Focus, Shape.Path, I), C.Value)
-                  then
-                     Found := True;
-                  end if;
-               end loop;
+             if C.Kind = Shapes.Has_Value_Param then
+                for I in 1 .. Count loop
+                   if Same (Values.List (I), C.Value) then
+                      Found := True;
+                   end if;
+                end loop;
                Note_Violation
                  (Terms.Empty, Shape, Focus, Shapes.Has_Value_Param, Target,
                   Emit, Found, All_Ok);
@@ -1611,7 +1877,7 @@ package body SHACL_Ada.Eval with SPARK_Mode is
       end loop;
 
       Check_Qualified
-        (Shape, Focus, Graph, Shape_Set, Depth, Count, Target, Emit, All_Ok);
+        (Shape, Focus, Graph, Shape_Set, Values, Depth, Target, Emit, All_Ok);
 
       --  sh:equals / sh:disjoint / sh:lessThan / sh:lessThanOrEquals.
       for Position in 1 .. Shape.Constraint_Count loop
@@ -1628,48 +1894,46 @@ package body SHACL_Ada.Eval with SPARK_Mode is
                      Pass : Boolean := True;
                   begin
                      case C.Kind is
-                        when Shapes.Equals_Param =>
-                           Pass := Other_Count = Count;
-                           if Pass then
-                              for I in 1 .. Count loop
-                                 exit when not Pass;
-                                 Pass := Object_Matches
-                                   (Graph, Focus, Other,
-                                    Nth_Object (Graph, Focus, Shape.Path, I));
-                              end loop;
-                           end if;
-                        when Shapes.Disjoint_Param =>
-                           for I in 1 .. Count loop
-                              exit when not Pass;
-                              for J in 1 .. Other_Count loop
-                                 if Same
-                                      (Nth_Object
-                                         (Graph, Focus, Shape.Path, I),
-                                       Nth_Object (Graph, Focus, Other, J))
-                                 then
-                                    Pass := False;
-                                 end if;
-                              end loop;
-                           end loop;
-                        when others =>
-                           declare
-                              Or_Equal : constant Boolean :=
-                                C.Kind = Shapes.Less_Than_Or_Equals;
-                           begin
-                              for I in 1 .. Count loop
-                                 exit when not Pass;
-                                 for J in 1 .. Other_Count loop
-                                    if not Pair_Less
-                                         (Nth_Object
-                                            (Graph, Focus, Shape.Path, I),
-                                          Nth_Object (Graph, Focus, Other, J),
-                                          Or_Equal)
-                                    then
-                                       Pass := False;
-                                    end if;
-                                 end loop;
-                              end loop;
-                           end;
+                         when Shapes.Equals_Param =>
+                            Pass := Other_Count = Count;
+                            if Pass then
+                               for I in 1 .. Count loop
+                                  exit when not Pass;
+                                  Pass := Object_Matches
+                                    (Graph, Focus, Other,
+                                     Values.List (I));
+                               end loop;
+                            end if;
+                         when Shapes.Disjoint_Param =>
+                            for I in 1 .. Count loop
+                               exit when not Pass;
+                               for J in 1 .. Other_Count loop
+                                  if Same
+                                       (Values.List (I),
+                                        Nth_Object (Graph, Focus, Other, J))
+                                  then
+                                     Pass := False;
+                                  end if;
+                               end loop;
+                            end loop;
+                         when others =>
+                            declare
+                               Or_Equal : constant Boolean :=
+                                 C.Kind = Shapes.Less_Than_Or_Equals;
+                            begin
+                               for I in 1 .. Count loop
+                                  exit when not Pass;
+                                  for J in 1 .. Other_Count loop
+                                     if not Pair_Less
+                                          (Values.List (I),
+                                           Nth_Object (Graph, Focus, Other, J),
+                                           Or_Equal)
+                                     then
+                                        Pass := False;
+                                     end if;
+                                  end loop;
+                               end loop;
+                            end;
                      end case;
                      Note_Violation
                        (Terms.Empty, Shape, Focus, C.Kind, Target, Emit,
@@ -1682,12 +1946,11 @@ package body SHACL_Ada.Eval with SPARK_Mode is
       end loop;
 
       --  Value-level components on every value node.
-      for I in 1 .. Count loop
-         pragma Loop_Invariant (Target.Count >= Target'Loop_Entry.Count);
-         declare
-            Value : constant Terms.Term :=
-              Nth_Object (Graph, Focus, Shape.Path, I);
-            Value_Ok : Boolean := True;
+       for I in 1 .. Count loop
+          pragma Loop_Invariant (Target.Count >= Target'Loop_Entry.Count);
+          declare
+             Value : constant Terms.Term := Values.List (I);
+             Value_Ok : Boolean := True;
          begin
             Check_Value_Constraints
               (Value, Shape, Focus, Graph, Shape_Set, Depth + 1,
@@ -1710,13 +1973,12 @@ package body SHACL_Ada.Eval with SPARK_Mode is
                if Ref > 0 then
                   --  Nested property shapes constrain the values of
                   --  this shape's path, not the focus node itself.
-                  for I in 1 .. Count loop
-                     pragma Loop_Invariant
-                       (Target.Count >= Target'Loop_Entry.Count);
-                     declare
-                        V : constant Terms.Term :=
-                          Nth_Object (Graph, Focus, Shape.Path, I);
-                     begin
+                   for I in 1 .. Count loop
+                      pragma Loop_Invariant
+                        (Target.Count >= Target'Loop_Entry.Count);
+                      declare
+                         V : constant Terms.Term := Values.List (I);
+                      begin
                         Sub_Ok := True;
                         Check_Property
                           (V, Ref, Graph, Shape_Set, Depth + 1,

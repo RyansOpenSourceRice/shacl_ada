@@ -22,9 +22,10 @@ package body SHACL_Ada.Rdf is
    subtype Shacl_Term is SHACL_Ada.Terms.Term;
    subtype FTerm  is Flyology_RDF.Terms.Term;
 
-   use type SHACL_Ada.Terms.Term_Kind;
-   use type Shapes.Constraint_Kind;
-   use type Flyology_RDF.Turtle_Parsers.Parse_Status;
+    use type SHACL_Ada.Terms.Term_Kind;
+    use type Shapes.Constraint_Kind;
+    use type Shapes.Path_Kind;
+    use type Flyology_RDF.Turtle_Parsers.Parse_Status;
 
    function Is_Iri (Value : Shacl_Term; Name : String) return Boolean is
      (SHACL_Ada.Terms.Kind_Of (Value) = SHACL_Ada.Terms.Iri
@@ -128,6 +129,38 @@ package body SHACL_Ada.Rdf is
 
    type Reference_Array is array (1 .. Max_Referenced) of Reference_Item;
 
+   --  Path-expression state. The five path predicates record their
+   --  subject/object pairs as they arrive (their subjects are path
+   --  nodes, not shapes); sh:path occurrences defer to Finalize,
+   --  where the whole structure is resolved into the table's path
+   --  AST. Ill-formed structures degrade to an invalid path, which
+   --  the engine treats as validating nothing; only bound overflows
+   --  raise Boundary_Error.
+   Max_Path_Triples : constant := 128;
+   Max_Path_Roots   : constant := 128;
+   Max_Path_Depth   : constant := 32;
+
+   type Path_Triple_Item is record
+      Subject : FTerm;
+      Of_Kind : Shapes.Path_Kind := Shapes.Path_Predicate;
+      Object  : FTerm;
+   end record;
+
+   type Path_Triple_Array is array (1 .. Max_Path_Triples) of Path_Triple_Item;
+
+   type Path_Root_Item is record
+      Shape_Index : Natural := 0;
+      Head        : FTerm;
+   end record;
+
+   type Path_Root_Array is array (1 .. Max_Path_Roots) of Path_Root_Item;
+
+   Path_Triple_Count : Natural := 0;
+   Path_Triples      : Path_Triple_Array;
+
+   Path_Root_Count : Natural := 0;
+   Path_Roots      : Path_Root_Array;
+
    --  Library-level traversal state; extraction is sequential.
    Table_Object : aliased Shapes.Shape_Table;
 
@@ -142,10 +175,14 @@ package body SHACL_Ada.Rdf is
 
    procedure Reset_Scan is
    begin
-      Table_Object := (List => (others => <>), Count => 0);
+      Table_Object :=
+        (List => (others => <>), Paths => (others => <>),
+         Count => 0, Path_Count => 0);
       Pending_Count := 0;
       List_Count := 0;
       Reference_Count := 0;
+      Path_Triple_Count := 0;
+      Path_Root_Count := 0;
    end Reset_Scan;
 
    function Ensure (Node : Shacl_Term) return Natural is
@@ -208,6 +245,27 @@ package body SHACL_Ada.Rdf is
       Pending_Count := Pending_Count + 1;
       Pending (Pending_Count) := (Shape_Index => Index, Kind => Kind, Head => Head);
    end Add_Pending;
+
+   procedure Add_Path_Triple (Subject : FTerm; Of_Kind : Shapes.Path_Kind;
+                              Object  : FTerm) is
+   begin
+      if Path_Triple_Count >= Max_Path_Triples then
+         raise Boundary_Error;
+      end if;
+      Path_Triple_Count := Path_Triple_Count + 1;
+      Path_Triples (Path_Triple_Count) :=
+        (Subject => Subject, Of_Kind => Of_Kind, Object => Object);
+   end Add_Path_Triple;
+
+   procedure Add_Path_Root (Shape_Index : Natural; Head : FTerm) is
+   begin
+      if Path_Root_Count >= Max_Path_Roots then
+         raise Boundary_Error;
+      end if;
+      Path_Root_Count := Path_Root_Count + 1;
+      Path_Roots (Path_Root_Count) :=
+        (Shape_Index => Shape_Index, Head => Head);
+   end Add_Path_Root;
 
    --  Create-or-update semantics: rdf:first and rdf:rest arrive as
    --  separate triples for the same list cell, so each records its own
@@ -304,11 +362,47 @@ package body SHACL_Ada.Rdf is
          declare
             Suffix : constant String :=
               P (P'First + Shacl_Ns'Length .. P'Last);
+         begin
+            --  The five path predicates define path nodes, not shapes:
+            --  record the pair and leave; the subject is never
+            --  Ensure'd into the shape table.
+            if Suffix = "inversePath" then
+               Add_Path_Triple (Flyology_RDF.Quads.Subject (Statement),
+                                Shapes.Path_Inverse,
+                                Flyology_RDF.Quads.Object (Statement));
+               return;
+            elsif Suffix = "alternativePath" then
+               Add_Path_Triple (Flyology_RDF.Quads.Subject (Statement),
+                                Shapes.Path_Alternative,
+                                Flyology_RDF.Quads.Object (Statement));
+               return;
+            elsif Suffix = "zeroOrOnePath" then
+               Add_Path_Triple (Flyology_RDF.Quads.Subject (Statement),
+                                Shapes.Path_Zero_Or_One,
+                                Flyology_RDF.Quads.Object (Statement));
+               return;
+            elsif Suffix = "zeroOrMorePath" then
+               Add_Path_Triple (Flyology_RDF.Quads.Subject (Statement),
+                                Shapes.Path_Zero_Or_More,
+                                Flyology_RDF.Quads.Object (Statement));
+               return;
+            elsif Suffix = "oneOrMorePath" then
+               Add_Path_Triple (Flyology_RDF.Quads.Subject (Statement),
+                                Shapes.Path_One_Or_More,
+                                Flyology_RDF.Quads.Object (Statement));
+               return;
+            end if;
+         end;
+
+         declare
+            Suffix : constant String :=
+              P (P'First + Shacl_Ns'Length .. P'Last);
             Index  : constant Natural := Ensure (Subject);
          begin
             if Suffix = "path" then
-               Table_Object.List (Index).Has_Path := True;
-               Table_Object.List (Index).Path := Object;
+               --  Defer: the object may be a blank node or a list whose
+               --  defining triples arrive later in the document.
+               Add_Path_Root (Index, Flyology_RDF.Quads.Object (Statement));
                Table_Object.List (Index).Is_Property_Shape := True;
 
             elsif Suffix = "targetNode" then
@@ -476,11 +570,186 @@ package body SHACL_Ada.Rdf is
       end loop;
    end Resolve_List;
 
+   --  Path-expression building -------------------------------------------
+
+   --  Position of the list entry for this node, or 0 when absent.
+   function Find_List (Node : FTerm) return Natural is
+      use type Flyology_RDF.Terms.Term;
+   begin
+      for Position in 1 .. List_Count loop
+         if Lists (Position).Node = Node then
+            return Position;
+         end if;
+      end loop;
+      return 0;
+   end Find_List;
+
+   --  Position of the first recorded path-predicate triple with this
+   --  subject, or 0 when absent.
+   function Find_Path_Triple (Node : FTerm) return Natural is
+      use type Flyology_RDF.Terms.Term;
+   begin
+      for Position in 1 .. Path_Triple_Count loop
+         if Path_Triples (Position).Subject = Node then
+            return Position;
+         end if;
+      end loop;
+      return 0;
+   end Find_Path_Triple;
+
+   --  Append one path node; a full path table is a published-bound
+   --  violation.
+   procedure Append_Path (Node : Shapes.Path_Node; Index : out Natural) is
+   begin
+      Shapes.Add_Path_Node (Table_Object, Node, Index);
+      if Index = 0 then
+         raise Boundary_Error;
+      end if;
+   end Append_Path;
+
+   --  Build the path-node index of one path expression, or 0 when the
+   --  expression is ill-formed. Depth bounds the recursion; circular
+   --  path definitions therefore degrade to an invalid path instead
+   --  of recursing forever.
+   function Build_Path (Node : FTerm; Depth : Natural) return Natural;
+
+   --  Fold an RDF list of path members into nested binary nodes of
+   --  Of_Kind (sequence or alternative). A single-member list is the
+   --  member itself.
+   function Build_List
+     (Cell   : FTerm;
+      Depth  : Natural;
+      Of_Kind : Shapes.Path_Kind) return Natural
+   is
+      use type Flyology_RDF.Terms.Term;
+      Nil      : constant FTerm :=
+        Flyology_RDF.Terms.IRI_Term
+          (Flyology_RDF.IRIs.From_UTF_8 (Rdf_Nil));
+      Position : constant Natural := Find_List (Cell);
+      Member   : Natural;
+      Rest     : Natural;
+      Index    : Natural;
+   begin
+      if Depth > Max_Path_Depth
+        or else Position = 0
+        or else not Lists (Position).Has_First
+        or else not Lists (Position).Has_Rest
+      then
+         return 0;
+      end if;
+      Member := Build_Path (Lists (Position).First, Depth + 1);
+      if Lists (Position).Rest = Nil then
+         return Member;
+      end if;
+      Rest := Build_List (Lists (Position).Rest, Depth + 1, Of_Kind);
+      if Member = 0 or else Rest = 0 then
+         return 0;
+      end if;
+      Append_Path
+        ((Kind => Of_Kind, Left => Member, Right => Rest, others => <>),
+         Index);
+      return Index;
+   end Build_List;
+
+   function Build_Path (Node : FTerm; Depth : Natural) return Natural is
+      use type Flyology_RDF.Terms.Term;
+      use type Flyology_RDF.Terms.Term_Kind;
+      Position : Natural;
+      Child    : Natural;
+      Index    : Natural;
+   begin
+      if Depth > Max_Path_Depth then
+         return 0;
+      end if;
+      case Flyology_RDF.Terms.Kind (Node) is
+         when Flyology_RDF.Terms.IRI_Kind =>
+            declare
+               Iri : constant String :=
+                 Flyology_RDF.IRIs.To_UTF_8
+                   (Flyology_RDF.Terms.IRI_Value (Node));
+            begin
+               if Iri = Rdf_Nil then
+                  return 0;  -- the empty list is not a path
+               end if;
+               Append_Path
+                 ((Kind => Shapes.Path_Predicate,
+                   Pred => Convert (Node),
+                   others => <>),
+                  Index);
+               return Index;
+            end;
+         when Flyology_RDF.Terms.Blank_Node_Kind =>
+            --  A list cell wins over sibling path predicates: the
+            --  W3C suite's strange-path cases define paths through
+            --  explicit rdf:first/rdf:rest structures, and Turtle's
+            --  ( ... ) abbreviation produces exactly this shape.
+            Position := Find_List (Node);
+            if Position > 0 then
+               return Build_List (Node, Depth, Shapes.Path_Sequence);
+            end if;
+            Position := Find_Path_Triple (Node);
+            if Position = 0 then
+               return 0;  -- no path structure: ill-formed
+            end if;
+            case Path_Triples (Position).Of_Kind is
+               when Shapes.Path_Alternative =>
+                  return Build_List
+                           (Path_Triples (Position).Object, Depth,
+                            Shapes.Path_Alternative);
+               when Shapes.Path_Inverse
+                  | Shapes.Path_Zero_Or_One
+                  | Shapes.Path_Zero_Or_More
+                  | Shapes.Path_One_Or_More =>
+                  Child := Build_Path
+                             (Path_Triples (Position).Object, Depth + 1);
+                  if Child = 0 then
+                     return 0;
+                  end if;
+                  Append_Path
+                    ((Kind => Path_Triples (Position).Of_Kind,
+                      Left => Child,
+                      others => <>),
+                     Index);
+                  return Index;
+               when Shapes.Path_Predicate | Shapes.Path_Sequence =>
+                  return 0;  -- never recorded under these kinds
+            end case;
+         when others =>
+            return 0;  -- literals are not paths
+      end case;
+   end Build_Path;
+
+   --  Resolve the deferred sh:path occurrences into the table's path
+   --  AST. Every shape with an sh:path keeps Has_Path; an ill-formed
+   --  expression leaves Path_Root at zero, which the engine treats as
+   --  validating nothing.
+   procedure Resolve_Paths is
+   begin
+      for Position in 1 .. Path_Root_Count loop
+         declare
+            Root : constant Natural :=
+              Build_Path (Path_Roots (Position).Head, 0);
+            Shape : Shapes.Shape renames
+              Table_Object.List (Path_Roots (Position).Shape_Index);
+         begin
+            Shape.Has_Path := True;
+            if Root > 0 then
+               Shape.Path_Root := Root;
+               if Table_Object.Paths (Root).Kind = Shapes.Path_Predicate
+               then
+                  Shape.Path_Summary := Table_Object.Paths (Root).Pred;
+               end if;
+            end if;
+         end;
+      end loop;
+   end Resolve_Paths;
+
    procedure Finalize is
    begin
       for Position in 1 .. Pending_Count loop
          Resolve_List (Pending (Position));
       end loop;
+      Resolve_Paths;
       for Position in 1 .. Reference_Count loop
          if not SHACL_Ada.Terms.Is_Empty (References (Position).Node) then
             declare
