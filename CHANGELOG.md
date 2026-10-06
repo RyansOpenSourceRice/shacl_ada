@@ -4,6 +4,12 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+## [2026.10.06.1] — 2026-10-06
+
+### Fixed
+
+- `README.md` — the OpenSSF Scorecard badge used a malformed image URL (`api.securityscorecards.dev/badge/github/<owner>/<repo>`, which renders nothing) and linked to the Scorecard tool's repository instead of this repository's report. It now uses the documented badge format (`api.scorecard.dev/projects/github.com/{owner}/{repo}/badge`, verified rendering) and links to this repo's public Scorecard viewer page.
+
 ## [2026.09.30.2] — 2026-09-30
 
 Conformance corpus milestone: the engine now passes the full vendored W3C core-suite corpus (73 cases), with the semantic fixes that required, and the proof gate restructured around the two context-explosive postconditions.

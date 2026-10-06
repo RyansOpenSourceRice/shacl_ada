@@ -6,7 +6,7 @@
 [![Pre-commit](https://img.shields.io/badge/pre--commit-gitleaks%20%7C%20cspell%20%7C%20Vale%20%7C%20OpenGrep%20%7C%20ocr-purple?style=flat-square)](.pre-commit-config.yaml)
 [![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions%20%7C%20pre--commit%20gate%20%7C%20SAST-orange?style=flat-square)](.github/workflows/pre-commit.yml)
 [![Renovate](https://img.shields.io/badge/Renovate-one%20config%20%7C%20pinned%20digests-green?style=flat-square)](renovate.json)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/badge/github/RyansOpenSourceRice/shacl_ada?style=flat-square)](https://github.com/ossf/scorecard)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/RyansOpenSourceRice/shacl_ada/badge)](https://scorecard.dev/viewer/?uri=github.com/RyansOpenSourceRice/shacl_ada)
 [![Ontology](https://img.shields.io/badge/ontology-project.ontology.ttl%20%7C%20SHACL-yellow?style=flat-square)](project.ontology.ttl)
 [![Standards](https://img.shields.io/badge/standards-CHANGELOG%20%7C%20MAINTAINERS%20%7C%20DESIGN%20vs%20SPECIFICATION%20%7C%20ROADMAP-orange?style=flat-square)](MAINTAINERS.md)
 
