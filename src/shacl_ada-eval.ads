@@ -3,13 +3,16 @@
 --  Constraint evaluation engine of the SPARK core.
 --
 --  Evaluates the SHACL 1.0 Core constraint components over a bounded
---  data graph and records violations. Property shapes evaluate predicate
---  paths only; path expressions are a separate milestone. Shape-link
---  recursion (sh:not, sh:and/sh:or/sh:xone members, sh:node,
---  sh:qualifiedValueShape, sh:property) is bounded by Max_Depth. The
---  violation capacity is a generic formal parameter, sized by the
---  application like the data-graph capacity. No exceptions are raised;
---  this unit is pure SPARK.
+--  data graph and records violations. Property shapes evaluate the full
+--  SHACL 1.0 Core path grammar (§6): predicate, inverse, sequence,
+--  alternative, and the three cardinality forms, as a bounded path
+--  AST in the shapes model. Shape-link recursion (sh:not,
+--  sh:and/sh:or/sh:xone members, sh:node, sh:qualifiedValueShape,
+--  sh:property) is bounded by Max_Depth; the path walker is bounded by
+--  a step fuel. The violation and distinct-value capacities are
+--  generic formal parameters, sized by the application like the
+--  data-graph capacity. No exceptions are raised; this unit is pure
+--  SPARK.
 
 with SHACL_Ada.Data;
 with SHACL_Ada.Shapes;
@@ -22,6 +25,11 @@ generic
    --  records. Validate stops recording beyond it; check Saturated to
    --  detect that the budget was too small.
    Max_Violations : Positive;
+
+   --  Number of distinct value nodes one path computation of this
+   --  instantiation records. A path yielding more evaluates over the
+   --  recorded prefix; the computation's Overflow flag reports it.
+   Max_Path_Values : Positive;
 
    --  The data-graph instantiation the engine evaluates over.
    with package Data is new SHACL_Ada.Data (<>);
@@ -59,6 +67,105 @@ package SHACL_Ada.Eval with SPARK_Mode is
       Post => Into.Count >= Into.Count'Old;
 
 private
+
+   --  Path-expression evaluation state -------------------------------
+
+   --  Total work items one path computation may process. Bounds the
+   --  walker against cyclic data and the exponential branching of
+   --  alternatives.
+   Max_Path_Work : constant := 512;
+
+   --  Slots of one continuation chain: the path-node indices still to
+   --  walk. The chain processes from the top (slot Depth) downward.
+   --  The slot value Emit_Marker (past every possible path index) is
+   --  an emit point: the node reached there is a value of the path.
+   --  Zero slots never occur: Chain_Push drops zero arguments.
+   Max_Chain : constant := 16;
+
+   Emit_Marker : constant := Shapes.Max_Path_Nodes + 1;
+
+   type Chain_Slots is array (1 .. Max_Chain) of Natural;
+
+   type Chain is record
+      Depth    : Natural range 0 .. Max_Chain := 0;
+      Slots    : Chain_Slots  := (others => 0);
+      Overflow : Boolean      := False;
+   end record;
+
+   type Work_Item is record
+      Node : Terms.Term := Terms.Empty;
+      Cont : Chain;
+   end record;
+
+   type Work_Array is array (1 .. Max_Path_Work) of Work_Item;
+
+   type Work_State is record
+      List      : Work_Array;
+      First     : Natural range 1 .. Max_Path_Work + 1 := 1;
+      Last      : Natural range 0 .. Max_Path_Work := 0;
+      Steps     : Natural range 0 .. Max_Path_Work := 0;
+      Exhausted : Boolean := False;
+   end record;
+
+   --  Worklist of one path computation. It is reused sequentially:
+   --  every Path_Values call completes before the next one starts.
+   Work : Work_State := (List => (others => <>), others => <>);
+
+   --  The distinct value nodes of one path computation over one focus
+   --  node. Overflow reports that the value budget or the step fuel
+   --  ran out; evaluation proceeds over the recorded prefix.
+   type Value_Array is array (1 .. Max_Path_Values) of Terms.Term;
+
+   type Value_Set is record
+      List     : Value_Array;
+      Count    : Natural range 0 .. Max_Path_Values := 0;
+      Overflow : Boolean := False;
+   end record;
+
+   procedure Append_Value (Values : in out Value_Set; Item : Terms.Term) with
+     Post => Values.Count <= Values.Count'Old + 1;
+
+   --  Depth guard for the two path-structure walks below; also bounds
+   --  them over malformed tables whose child links could cycle.
+   Path_Depth_Limit : constant := 64;
+
+   --  The distinct value nodes the path with root index Root yields
+   --  from From over Graph. A root of zero (ill-formed path) yields
+   --  the empty set.
+   procedure Path_Values
+     (From      : Terms.Term;
+      Root      : Natural;
+      Graph     : Data.Graph;
+      Shape_Set : Shapes.Shape_Table;
+      Values    : out Value_Set);
+
+   --  One step of the path walker: the top of Item's chain names a
+   --  well-formed path node, which this expands onto the worklist.
+   --  Declared in the private part so its proof stands alone at the
+   --  walker's call site rather than inside the walker's loop.
+   procedure Expand_Item
+     (Item      : Work_Item;
+      Graph     : Data.Graph;
+      Shape_Set : Shapes.Shape_Table)
+   with Pre => Item.Cont.Depth >= 1
+               and then Item.Cont.Slots (Item.Cont.Depth)
+                          in 1 .. Shape_Set.Path_Count;
+
+   --  True when the predicate IRI occurs anywhere in the path with
+   --  root index Root — the leaf predicates of the path grammar, the
+   --  predicate set of sh:closed.
+   function Path_Has_Predicate
+     (Shape_Set : Shapes.Shape_Table;
+      Root      : Natural;
+      Want      : Terms.Term;
+      Depth     : Natural) return Boolean
+   with Subprogram_Variant => (Decreases => Depth);
+
+   --  Structural equality of the paths rooted at A and B.
+   function Same_Path
+     (Shape_Set : Shapes.Shape_Table; A, B : Natural; Depth : Natural)
+      return Boolean
+   with Subprogram_Variant => (Decreases => Depth);
 
    --  Internal evaluation steps. Declared in the private part so each
    --  is proven standalone with its contract at call sites rather than
@@ -142,8 +249,8 @@ private
       Focus     : Terms.Term;
       Graph     : Data.Graph;
       Shape_Set : Shapes.Shape_Table;
+      Values    : Value_Set;
       Depth     : Natural;
-      Count     : Natural;
       Target    : in out Violation_Table;
       Emit      : Boolean;
       Ok        : in out Boolean)

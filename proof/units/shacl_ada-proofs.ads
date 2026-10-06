@@ -11,7 +11,8 @@ package SHACL_Ada.Proofs with SPARK_Mode is
    package Proof_Data is new SHACL_Ada.Data (Max_Triples => 32);
 
    package Proof_Eval is new SHACL_Ada.Eval
-     (Max_Violations => 8,
+     (Max_Violations  => 8,
+      Max_Path_Values => 16,
       Data            => Proof_Data);
 
 end SHACL_Ada.Proofs;

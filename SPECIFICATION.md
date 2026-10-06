@@ -76,7 +76,7 @@ Workflows run in parallel, all `contents: read`, concurrency-cancelled per ref:
 | `review` | PRs only | `ocr review` against the PR base; skips itself without `OPENROUTER_API_KEY`; `continue-on-error: true` |
 | `corpus` | push/PR touching `corpora/**` or the vendor script; `workflow_dispatch` | PRs/pushes: run `vendor-corpus.sh --verify` (integrity). Dispatch: compare pinned commit with the upstream tip and report drift — no scheduled jobs (§9) |
 | `scorecard` | push to `main`, `workflow_dispatch` | OpenSSF Scorecard analysis; SARIF to code scanning and results published for the public badge. Event-driven only — no scheduled jobs (§9). No PR runs: the action publishes results only on push events |
-| `ada` | push to `main`/`dev`, PRs | `alr build` over the crate, the two-phase `gnatprove -U --level=3 --timeout=300` proof over `proof/spark_core.gpr` (full run plus `--limit-region` re-proof of two context-explosive postconditions; phase 1 tolerates unproved checks only inside those two instantiated units, phase 2 proves clean), `shapes_tests`, the `conformance` smoke run, and the `eval_tests` corpus suite over the vendored corpus |
+| `ada` | push to `main`/`dev`, PRs | `alr build` over the crate, the two-phase `gnatprove -U --level=3 --timeout=300` proof over `proof/spark_core.gpr` (full run plus `--limit-subp` re-proof of the two context-explosive postconditions; phase 1 tolerates unproved checks only inside those two instantiated units, phase 2 proves clean; both phases gate on gnatprove's summary output, snapshotted per run), `shapes_tests`, the `conformance` smoke run, and the `eval_tests` corpus suite over the vendored corpus |
 
 Skipped-by-design jobs (documented per §29, added when they apply): `container` (no container ships — OS-free library) and `dynamic` (no runtime to probe).
 
@@ -108,6 +108,16 @@ Skipped-by-design jobs (documented per §29, added when they apply): `container`
 ## Conformance target
 
 W3C SHACL 1.0 Recommendation — shapes graph semantics, constraint components, and validation-report vocabulary as published 20 July 2017. Deviations, if any, are recorded in this file at implementation time, not silently absorbed.
+
+## Conformance deviations
+
+Recorded deviations, each also documented where the code carries it:
+
+- **`sh:inversePath` accepts a single predicate argument.** The Recommendation permits any path as the argument; a compound argument evaluates as yielding no values. The bounded path walker does not carry the candidate enumeration a general inversion needs, and no suite case exercises one.
+- **Path evaluation runs under a step fuel.** Each path computation processes at most `Max_Path_Work` (512) work items; a path expanding past the fuel evaluates over the visited prefix, and the computation's `Overflow` flag reports exhaustion. Cyclic data terminates on the fuel, not on cycle detection.
+- **An ill-formed path validates nothing.** A property shape whose `sh:path` does not resolve into a path expression is treated as validating nothing rather than as a shapes-graph failure; extraction does not raise for it.
+- **`sh:pattern` implements a bounded regex subset** — literals, `.`, character classes with ranges and negation, backslash escapes, the `*`/`+`/`?` quantifiers, `^`/`$` anchors, and the case-insensitivity flag — not the full XSD regular-expression surface.
+- **XSD numeric comparison approximates** beyond 18 significant mantissa digits and caps exponents at `2**20`; the corpus and ordinary datasets compare exactly.
 
 ## Versioning
 

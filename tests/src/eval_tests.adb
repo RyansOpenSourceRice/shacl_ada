@@ -3,9 +3,11 @@
 --  Corpus conformance tests: every selected W3C test-suite case is
 --  validated through the engine and the report's conformance is
 --  compared against the suite's recorded expectation. Cases cover the
---  implemented components over predicate paths; report-vocabulary
---  cases (sh:severity, sh:message) and the meta-shapes case
---  (shacl-shacl) are out of scope until the report milestone.
+--  implemented components over the full Core path grammar (predicate,
+--  inverse, sequence, alternative, and the three cardinality forms);
+--  report-vocabulary cases (sh:severity, sh:message) and the
+--  meta-shapes case (shacl-shacl) are out of scope until the report
+--  milestone.
 
 with Ada.Command_Line;
 with Ada.Directories;
@@ -34,7 +36,9 @@ procedure Eval_Tests is
    procedure To_Graph is new SHACL_Ada.Rdf.Extract_Data (Corpus_Data);
 
    package Corpus_Eval is new SHACL_Ada.Eval
-     (Max_Violations => 256, Data => Corpus_Data);
+     (Max_Violations  => 256,
+      Max_Path_Values => 256,
+      Data            => Corpus_Data);
 
    type Graph_Ref is access Corpus_Data.Graph;
    type Result_Ref is access Corpus_Eval.Violation_Table;
@@ -123,6 +127,20 @@ procedure Eval_Tests is
       --  deactivated shapes, core/misc
       (new String'("misc"), new String'("deactivated-001.ttl"), True),
       (new String'("misc"), new String'("deactivated-002.ttl"), False),
+      --  path expressions, core/path
+      (new String'("path"), new String'("path-alternative-001.ttl"), False),
+      (new String'("path"), new String'("path-complex-001.ttl"), False),
+      (new String'("path"), new String'("path-complex-002.ttl"), False),
+      (new String'("path"), new String'("path-inverse-001.ttl"), False),
+      (new String'("path"), new String'("path-oneOrMore-001.ttl"), False),
+      (new String'("path"), new String'("path-sequence-001.ttl"), False),
+      (new String'("path"), new String'("path-sequence-002.ttl"), False),
+      (new String'("path"), new String'("path-sequence-duplicate-001.ttl"), False),
+      (new String'("path"), new String'("path-strange-001.ttl"), False),
+      (new String'("path"), new String'("path-strange-002.ttl"), False),
+      (new String'("path"), new String'("path-unused-001.ttl"), False),
+      (new String'("path"), new String'("path-zeroOrMore-001.ttl"), False),
+      (new String'("path"), new String'("path-zeroOrOne-001.ttl"), False),
       --  mixed shapes and data, core/complex
       (new String'("complex"), new String'("personexample.ttl"), False));
 
