@@ -4,10 +4,10 @@
 #  hosted pipelines carry only the light signals (gitleaks, pre-commit).
 #
 #  The proof runs in two phases: the full run carries two large
-#  postconditions (Check_Property at shacl_ada-eval.ads:177, Check_Kind
-#  at shacl_ada-eval.ads:199) whose in-context proof is
+#  postconditions (Check_Property, Check_Kind — declared at
+#  shacl_ada-eval.ads:200 and :222) whose in-context proof is
 #  context-explosion-bound; they are re-proven standalone with
-#  --limit-region, the gnatprove-documented workflow for such cases.
+#  --limit-subp, the gnatprove-documented workflow for such cases.
 #  Phase 1 tolerates unproved checks only inside those two instantiated
 #  units; phase 2 must be fully clean.
 set -euo pipefail
@@ -18,23 +18,27 @@ alr --non-interactive build
 mkdir -p proof/obj
 gnatprove -P proof/spark_core.gpr -U --level=3 --timeout=300 -j2 \
   > proof/obj/proof-phase1.log
+#  Failed checks print to stderr, never to the redirected logs; the
+#  summary file is the authority for both phases, snapshotted per run.
+cp proof/obj/gnatprove/gnatprove.out proof/obj/summary-phase1.out
 gnatprove -P proof/spark_core.gpr -U --level=3 --timeout=300 \
-  --limit-region=shacl_ada-eval.ads:177:4 \
-  --limit-region=shacl_ada-eval.ads:199:4 \
+  --limit-subp=shacl_ada-eval.ads:200 \
+  --limit-subp=shacl_ada-eval.ads:222 \
   > proof/obj/proof-phase2.log
-if grep -qE "high: " proof/obj/proof-phase1.log; then
-  echo "SPARK phase 1: high-severity check failures:" >&2
-  grep -E "high: " proof/obj/proof-phase1.log >&2
-  exit 1
-fi
-if grep "not proved," proof/obj/gnatprove/gnatprove.out \
-     | grep -vE "Proof_Eval\.Check_(Property|Kind) at shacl_ada-eval\.ads:"; then
+#  Phase 1 tolerates unproved checks only inside the two declared
+#  marginal units; anything else fails the gate.
+if grep "not proved," proof/obj/summary-phase1.out \
+     | grep -vE "Proof_Eval\.Check_(Property|Kind) at shacl_ada-eval\.ads:"
+then
   echo "SPARK phase 1: unproved checks outside the declared marginal units:" >&2
+  grep "not proved," proof/obj/summary-phase1.out \
+    | grep -vE "Proof_Eval\.Check_(Property|Kind) at shacl_ada-eval\.ads:" >&2
   exit 1
 fi
-if grep -qE "medium: |high: " proof/obj/proof-phase2.log; then
-  echo "SPARK phase 2: limit-region proof incomplete:" >&2
-  grep -E "medium: |high: " proof/obj/proof-phase2.log >&2
+#  Phase 2 must be fully clean.
+if grep "not proved," proof/obj/gnatprove/gnatprove.out; then
+  echo "SPARK phase 2: limit-subp proof incomplete:" >&2
+  grep "not proved," proof/obj/gnatprove/gnatprove.out >&2
   exit 1
 fi
 

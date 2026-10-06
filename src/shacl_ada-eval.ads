@@ -70,20 +70,31 @@ private
 
    --  Path-expression evaluation state -------------------------------
 
-   --  Total work items (node, path-node) pairs one path computation
-   --  may process. Bounds the walker against cyclic data and the
-   --  exponential branching of alternatives.
+   --  Total work items one path computation may process. Bounds the
+   --  walker against cyclic data and the exponential branching of
+   --  alternatives.
    Max_Path_Work : constant := 512;
 
-   --  Path-node expansion chain. One item means: walk the path node
-   --  Step from Node; the values it yields continue with the path node
-   --  Next, whose values continue with Next2. Step zero with all
-   --  continuations zero means Node is a final value.
+   --  Slots of one continuation chain: the path-node indices still to
+   --  walk. The chain processes from the top (slot Depth) downward.
+   --  The slot value Emit_Marker (past every possible path index) is
+   --  an emit point: the node reached there is a value of the path.
+   --  Zero slots never occur: Chain_Push drops zero arguments.
+   Max_Chain : constant := 16;
+
+   Emit_Marker : constant := Shapes.Max_Path_Nodes + 1;
+
+   type Chain_Slots is array (1 .. Max_Chain) of Natural;
+
+   type Chain is record
+      Depth    : Natural range 0 .. Max_Chain := 0;
+      Slots    : Chain_Slots  := (others => 0);
+      Overflow : Boolean      := False;
+   end record;
+
    type Work_Item is record
-      Node  : Terms.Term := Terms.Empty;
-      Step  : Natural    := 0;
-      Next  : Natural    := 0;
-      Next2 : Natural    := 0;
+      Node : Terms.Term := Terms.Empty;
+      Cont : Chain;
    end record;
 
    type Work_Array is array (1 .. Max_Path_Work) of Work_Item;
@@ -127,6 +138,18 @@ private
       Graph     : Data.Graph;
       Shape_Set : Shapes.Shape_Table;
       Values    : out Value_Set);
+
+   --  One step of the path walker: the top of Item's chain names a
+   --  well-formed path node, which this expands onto the worklist.
+   --  Declared in the private part so its proof stands alone at the
+   --  walker's call site rather than inside the walker's loop.
+   procedure Expand_Item
+     (Item      : Work_Item;
+      Graph     : Data.Graph;
+      Shape_Set : Shapes.Shape_Table)
+   with Pre => Item.Cont.Depth >= 1
+               and then Item.Cont.Slots (Item.Cont.Depth)
+                          in 1 .. Shape_Set.Path_Count;
 
    --  True when the predicate IRI occurs anywhere in the path with
    --  root index Root — the leaf predicates of the path grammar, the

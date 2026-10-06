@@ -138,19 +138,51 @@ package body SHACL_Ada.Eval with SPARK_Mode is
    --  Path evaluation (SHACL 1.0 Core §6)
    --  ------------------------------------------------------------------
 
-   --  Worklist window and step fuel for one path computation. The
-   --  window slides without wraparound: total pushes are bounded by
-   --  the fuel, so no item is ever overwritten.
-   procedure Work_Push
-     (Node : Terms.Term; Step, Next, Next2 : Natural)
-   is
+   --  The chain with Item pushed on top; zero arguments are dropped.
+   --  Overflow propagates: a chain deeper than Max_Chain exhausts the
+   --  computation at the next push.
+   function Chain_Push (Base : Chain; A, B, C : Natural) return Chain is
+      Extra : constant Natural :=
+        (if A /= 0 then 1 else 0) + (if B /= 0 then 1 else 0)
+        + (if C /= 0 then 1 else 0);
+      Result : Chain := Base;
    begin
-      if Work.Last >= Max_Path_Work or else Work.Steps = 0 then
+      if Base.Overflow or else Base.Depth + Extra > Max_Chain then
+         Result.Overflow := True;
+      else
+         if C /= 0 then
+            Result.Depth := Result.Depth + 1;
+            Result.Slots (Result.Depth) := C;
+         end if;
+         if B /= 0 then
+            Result.Depth := Result.Depth + 1;
+            Result.Slots (Result.Depth) := B;
+         end if;
+         if A /= 0 then
+            Result.Depth := Result.Depth + 1;
+            Result.Slots (Result.Depth) := A;
+         end if;
+      end if;
+      return Result;
+   end Chain_Push;
+
+   --  The chain without its top slot; requires a nonempty chain.
+   function Chain_Rest (Of_Item : Work_Item) return Chain is
+     (Depth    => Of_Item.Cont.Depth - 1,
+      Slots    => Of_Item.Cont.Slots,
+      Overflow => False)
+   with Pre  => Of_Item.Cont.Depth >= 1,
+        Post => Chain_Rest'Result.Depth = Of_Item.Cont.Depth - 1;
+
+   --  Enqueue one walker item. A full worklist or an overflowing
+   --  chain exhausts the computation.
+   procedure Work_Push (Node : Terms.Term; Cont : Chain) is
+   begin
+      if Cont.Overflow or else Work.Last >= Max_Path_Work then
          Work.Exhausted := True;
       else
          Work.Last := Work.Last + 1;
-         Work.List (Work.Last) :=
-           (Node => Node, Step => Step, Next => Next, Next2 => Next2);
+         Work.List (Work.Last) := (Node => Node, Cont => Cont);
       end if;
    end Work_Push;
 
@@ -183,13 +215,16 @@ package body SHACL_Ada.Eval with SPARK_Mode is
    end Append_Value;
 
    --  The distinct value nodes the path with root index Root yields
-   --  from From over Graph. The walker processes (node, path-node)
-   --  pairs from a sliding worklist; every non-terminal expansion
-   --  decrements the fuel, which bounds the walker against cyclic
-   --  data and the branching of alternatives. When the fuel or the
-   --  worklist runs out, evaluation proceeds over the recorded prefix
-   --  and Overflow reports it. An ill-formed root (zero, or an index
-   --  past the table) yields the empty set.
+   --  from From over Graph. The walker processes (node, chain) items
+   --  from a sliding worklist. A chain holds the path-node indices
+   --  still to walk, top first; slot zero is an emit point (the node
+   --  reached there is a value); an empty chain's node is a final
+   --  value. Every processed item decrements the fuel, which bounds
+   --  the walker against cyclic data and the branching of
+   --  alternatives; when the fuel, the worklist, or a chain runs out,
+   --  evaluation proceeds over the recorded prefix and Overflow
+   --  reports it. An ill-formed root (zero, or an index past the
+   --  table) yields the empty set.
    procedure Path_Values
      (From      : Terms.Term;
       Root      : Natural;
@@ -201,12 +236,17 @@ package body SHACL_Ada.Eval with SPARK_Mode is
    begin
       Values := (Count => 0, Overflow => False,
                  List  => (others => Terms.Empty));
+      if Root = 0 or else Root > Shape_Set.Path_Count then
+         return;
+      end if;
       Work := (List      => (others => <>),
                First     => 1,
                Last      => 0,
                Steps     => Max_Path_Work,
                Exhausted => False);
-      Work_Push (From, Root, 0, 0);
+      Work_Push
+        (From, (Depth => 1, Slots => (1 => Root, others => 0),
+                Overflow => False));
       while Work.First <= Work.Last
         and then not Work.Exhausted
       loop
@@ -215,90 +255,22 @@ package body SHACL_Ada.Eval with SPARK_Mode is
             Work.Exhausted := True;
          else
             Work.Steps := Work.Steps - 1;
-            if Item.Step = 0 then
-               --  A value of the walked prefix continues with the
-               --  remaining chain, or is final.
-               if Item.Next = 0 then
-                  Append_Value (Values, Item.Node);
-               else
-                  Work_Push (Item.Node, Item.Next, Item.Next2, 0);
-               end if;
-            elsif Item.Step <= Shape_Set.Path_Count then
+            if Item.Cont.Depth = 0 then
+               Append_Value (Values, Item.Node);
+            else
                declare
-                  Desc : constant Shapes.Path_Node :=
-                    Shape_Set.Paths (Item.Step);
+                  Step : constant Natural :=
+                    Item.Cont.Slots (Item.Cont.Depth);
+                  Rest : constant Chain := Chain_Rest (Item);
                begin
-                  case Desc.Kind is
-                     when Shapes.Path_Predicate =>
-                        for I in 1 .. Graph.Count loop
-                           declare
-                              T : constant Data.Triple :=
-                                Data.Element (Graph, I);
-                           begin
-                              if Same (T.Subject, Item.Node)
-                                and then Same (T.Predicate, Desc.Pred)
-                              then
-                                 Work_Push (T.Object, Item.Next, Item.Next2, 0);
-                              end if;
-                           end;
-                        end loop;
-                     when Shapes.Path_Inverse =>
-                        --  The inverse of a single predicate step. The
-                        --  general inverse of a compound subpath is
-                        --  out of scope (see SPECIFICATION.md).
-                        if Desc.Left in 1 .. Shape_Set.Path_Count
-                          and then Shape_Set.Paths (Desc.Left).Kind
-                                     = Shapes.Path_Predicate
-                        then
-                           for I in 1 .. Graph.Count loop
-                              declare
-                                 T : constant Data.Triple :=
-                                   Data.Element (Graph, I);
-                              begin
-                                 if Same (T.Object, Item.Node)
-                                   and then Same
-                                              (T.Predicate,
-                                               Shape_Set.Paths
-                                                 (Desc.Left).Pred)
-                                 then
-                                   Work_Push
-                                     (T.Subject, Item.Next, Item.Next2, 0);
-                                 end if;
-                              end;
-                           end loop;
-                        end if;
-                     when Shapes.Path_Sequence =>
-                        if Desc.Left in 1 .. Shape_Set.Path_Count then
-                           Work_Push
-                             (Item.Node, Desc.Left, Desc.Right, Item.Next);
-                        end if;
-                     when Shapes.Path_Alternative =>
-                        if Desc.Left in 1 .. Shape_Set.Path_Count then
-                           Work_Push
-                             (Item.Node, Desc.Left, Item.Next, Item.Next2);
-                        end if;
-                        if Desc.Right in 1 .. Shape_Set.Path_Count then
-                           Work_Push
-                             (Item.Node, Desc.Right, Item.Next, Item.Next2);
-                        end if;
-                     when Shapes.Path_Zero_Or_One =>
-                        Work_Push (Item.Node, Item.Next, Item.Next2, 0);
-                        if Desc.Left in 1 .. Shape_Set.Path_Count then
-                           Work_Push
-                             (Item.Node, Desc.Left, Item.Next, Item.Next2);
-                        end if;
-                     when Shapes.Path_Zero_Or_More =>
-                        Work_Push (Item.Node, Item.Next, Item.Next2, 0);
-                        if Desc.Left in 1 .. Shape_Set.Path_Count then
-                           Work_Push
-                             (Item.Node, Desc.Left, Item.Step, Item.Next);
-                        end if;
-                     when Shapes.Path_One_Or_More =>
-                        if Desc.Left in 1 .. Shape_Set.Path_Count then
-                           Work_Push
-                             (Item.Node, Desc.Left, Item.Step, Item.Next);
-                        end if;
-                  end case;
+                  if Step = Emit_Marker then
+                     --  Emit point: the node is a value of the prefix
+                     --  walked so far; the chain continues.
+                     Append_Value (Values, Item.Node);
+                     Work_Push (Item.Node, Rest);
+                  elsif Step in 1 .. Shape_Set.Path_Count then
+                     Expand_Item (Item, Graph, Shape_Set);
+                  end if;
                end;
             end if;
          end if;
@@ -307,6 +279,90 @@ package body SHACL_Ada.Eval with SPARK_Mode is
          Values.Overflow := True;
       end if;
    end Path_Values;
+
+   --  One step of the path walker: expand the path node named by the
+   --  top of Item's chain onto the worklist. The predicate and inverse
+   --  cases push each successor with the remaining chain; the
+   --  structural cases push the node itself with a longer chain.
+   procedure Expand_Item
+     (Item      : Work_Item;
+      Graph     : Data.Graph;
+      Shape_Set : Shapes.Shape_Table)
+   is
+      Step : constant Natural := Item.Cont.Slots (Item.Cont.Depth);
+      Rest : constant Chain := Chain_Rest (Item);
+      Desc : constant Shapes.Path_Node := Shape_Set.Paths (Step);
+   begin
+      case Desc.Kind is
+         when Shapes.Path_Predicate =>
+            for I in 1 .. Graph.Count loop
+               declare
+                  T : constant Data.Triple := Data.Element (Graph, I);
+               begin
+                  if Same (T.Subject, Item.Node)
+                    and then Same (T.Predicate, Desc.Pred)
+                  then
+                     Work_Push (T.Object, Rest);
+                  end if;
+               end;
+            end loop;
+         when Shapes.Path_Inverse =>
+            --  The inverse of a single predicate step. The general
+            --  inverse of a compound subpath is out of scope (see
+            --  SPECIFICATION.md).
+            if Desc.Left in 1 .. Shape_Set.Path_Count
+              and then Shape_Set.Paths (Desc.Left).Kind
+                         = Shapes.Path_Predicate
+            then
+               for I in 1 .. Graph.Count loop
+                  declare
+                     T : constant Data.Triple := Data.Element (Graph, I);
+                  begin
+                     if Same (T.Object, Item.Node)
+                       and then Same
+                                  (T.Predicate,
+                                   Shape_Set.Paths (Desc.Left).Pred)
+                     then
+                        Work_Push (T.Subject, Rest);
+                     end if;
+                  end;
+               end loop;
+            end if;
+         when Shapes.Path_Sequence =>
+            if Desc.Left in 1 .. Shape_Set.Path_Count
+              and then Desc.Right in 1 .. Shape_Set.Path_Count
+            then
+               Work_Push
+                 (Item.Node, Chain_Push (Rest, Desc.Left, Desc.Right, 0));
+            elsif Desc.Left in 1 .. Shape_Set.Path_Count then
+               Work_Push (Item.Node, Chain_Push (Rest, Desc.Left, 0, 0));
+            end if;
+         when Shapes.Path_Alternative =>
+            if Desc.Left in 1 .. Shape_Set.Path_Count then
+               Work_Push (Item.Node, Chain_Push (Rest, Desc.Left, 0, 0));
+            end if;
+            if Desc.Right in 1 .. Shape_Set.Path_Count then
+               Work_Push (Item.Node, Chain_Push (Rest, Desc.Right, 0, 0));
+            end if;
+         when Shapes.Path_Zero_Or_One =>
+            Work_Push (Item.Node, Rest);
+            if Desc.Left in 1 .. Shape_Set.Path_Count then
+               Work_Push
+                 (Item.Node, Chain_Push (Rest, Desc.Left, Emit_Marker, 0));
+            end if;
+         when Shapes.Path_Zero_Or_More =>
+            Work_Push (Item.Node, Rest);
+            if Desc.Left in 1 .. Shape_Set.Path_Count then
+               Work_Push (Item.Node, Chain_Push (Rest, Desc.Left, Step, 0));
+            end if;
+         when Shapes.Path_One_Or_More =>
+            if Desc.Left in 1 .. Shape_Set.Path_Count then
+               Work_Push
+                 (Item.Node,
+                  Chain_Push (Rest, Desc.Left, Emit_Marker, Step));
+            end if;
+      end case;
+   end Expand_Item;
 
    --  True when Want is a leaf predicate of the path rooted at Root.
    --  Depth bounds the walk over malformed tables whose child links
