@@ -20,8 +20,14 @@ with SHACL_Ada.Data;
 with SHACL_Ada.Eval;
 with SHACL_Ada.Rdf;
 with SHACL_Ada.Shapes;
+with SHACL_Ada.Terms;
+with SHACL_Ada.Validation;
 
 procedure Eval_Tests is
+   use type SHACL_Ada.Validation.Error_Kind;
+   use type SHACL_Ada.Shapes.Constraint_Kind;
+   use type SHACL_Ada.Shapes.Severity_Kind;
+   use type SHACL_Ada.Terms.Term;
 
    use Ada.Text_IO;
 
@@ -39,6 +45,15 @@ procedure Eval_Tests is
      (Max_Violations  => 256,
       Max_Path_Values => 256,
       Data            => Corpus_Data);
+
+   --  Deliberately tiny budget: capacity behavior is asserted, not the
+   --  report content.
+   package Tiny_Eval is new SHACL_Ada.Eval
+     (Max_Violations  => 2,
+      Max_Path_Values => 16,
+      Data            => Corpus_Data);
+
+   Capacity_Hit : Boolean := False;
 
    type Graph_Ref is access Corpus_Data.Graph;
    type Result_Ref is access Corpus_Eval.Violation_Table;
@@ -171,7 +186,25 @@ procedure Eval_Tests is
    procedure Report_Result
      (Entry_Case : Case_Record; Rpt : Corpus_Eval.Violation_Table)
    is
+      use type SHACL_Ada.Shapes.Severity_Kind;
    begin
+      --  Every corpus shape omits sh:severity and sh:message, so every
+      --  recorded result must carry the defaults: Violation severity
+      --  and an auto-generated message.
+      for I in 1 .. Rpt.Count loop
+         if Rpt.List (I).Severity /= SHACL_Ada.Shapes.Severity_Violation then
+            Put_Line ("FAIL " & Entry_Case.Dir.all & "/" & Entry_Case.File.all
+                      & ": non-default severity");
+            Failures := Failures + 1;
+            return;
+         end if;
+         if SHACL_Ada.Terms.Lexical_Of (Rpt.List (I).Message) = "" then
+            Put_Line ("FAIL " & Entry_Case.Dir.all & "/" & Entry_Case.File.all
+                      & ": empty message");
+            Failures := Failures + 1;
+            return;
+         end if;
+      end loop;
       if not Verbose then
          return;
       end if;
@@ -222,10 +255,251 @@ procedure Eval_Tests is
       end if;
       SHACL_Ada.Rdf.Extract_Shapes (Dataset, Shapes.all);
       To_Graph (Dataset, Graph.all);
-      Corpus_Eval.Validate (Shapes.all, Graph.all, Local.all);
+      declare
+         Err : SHACL_Ada.Validation.Error_Kind;
+      begin
+         Corpus_Eval.Validate (Shapes.all, Graph.all, Local.all, Err);
+         if Err /= SHACL_Ada.Validation.None then
+            Capacity_Hit := True;
+         end if;
+      end;
       Rpt := Local.all;
       Conforms := Rpt.Count = 0;
    end Run_File;
+
+   procedure Run_Inline_Shapes
+     (Shapes_Doc : String;
+      Shapes     : out Shape_Table_Ref;
+      Graph      : out Graph_Ref)
+   is
+      Dataset : Flyology_RDF.Datasets.Dataset;
+      Loaded  : Boolean;
+   begin
+      Shapes := new SHACL_Ada.Shapes.Shape_Table;
+      Graph := new Corpus_Data.Graph;
+      SHACL_Ada.Rdf.Load_Turtle (Shapes_Doc, "file://inline", Dataset, Loaded);
+      if not Loaded then
+         raise Constraint_Error with "inline shapes rejected";
+      end if;
+      SHACL_Ada.Rdf.Extract_Shapes (Dataset, Shapes.all);
+      To_Graph (Dataset, Graph.all);
+   end Run_Inline_Shapes;
+
+   --  Warning-only results still fail conformance (spec-literal
+   --  sh:conforms), and carry the shape's severity and message.
+   procedure Check_Report_Surface is
+      use type SHACL_Ada.Shapes.Severity_Kind;
+      use type SHACL_Ada.Validation.Error_Kind;
+      Shapes_Doc : constant String :=
+        "@prefix sh: <http://www.w3.org/ns/shacl#> ." & ASCII.LF &
+        "@prefix ex: <http://example.org/> ." & ASCII.LF &
+        "ex:S a sh:NodeShape ;" & ASCII.LF &
+        "  sh:targetNode ex:a ;" & ASCII.LF &
+        "  sh:property ex:P ." & ASCII.LF &
+        "ex:P a sh:PropertyShape ;" & ASCII.LF &
+        "  sh:path ex:p ;" & ASCII.LF &
+        "  sh:minCount 1 ;" & ASCII.LF &
+        "  sh:severity sh:Warning ;" & ASCII.LF &
+        "  sh:message ""mind the gap"" ." & ASCII.LF;
+      Shapes : Shape_Table_Ref;
+      Graph  : Graph_Ref;
+      Local  : constant Result_Ref := new Corpus_Eval.Violation_Table;
+      Err    : SHACL_Ada.Validation.Error_Kind;
+   begin
+      Run_Inline_Shapes (Shapes_Doc, Shapes, Graph);
+      Corpus_Eval.Validate (Shapes.all, Graph.all, Local.all, Err);
+      if Local.Count /= 1 then
+         Put_Line ("FAIL report-surface: count");
+         Failures := Failures + 1;
+         return;
+      end if;
+      if Err /= SHACL_Ada.Validation.None then
+         Put_Line ("FAIL report-surface: unexpected capacity error");
+         Failures := Failures + 1;
+      end if;
+      if Local.List (1).Severity /= SHACL_Ada.Shapes.Severity_Warning then
+         Put_Line ("FAIL report-surface: severity");
+         Failures := Failures + 1;
+      end if;
+      if SHACL_Ada.Terms.Lexical_Of (Local.List (1).Message)
+        /= "mind the gap"
+      then
+         Put_Line ("FAIL report-surface: message passthrough");
+         Failures := Failures + 1;
+      end if;
+      if Corpus_Eval.Conforms (Local.all) then
+         Put_Line ("FAIL report-surface: warning-only conforms");
+         Failures := Failures + 1;
+      else
+         Put_Line ("PASS report-surface: warning severity, message, no conforms");
+      end if;
+   end Check_Report_Surface;
+
+   --  A full table stops recording with Capacity_Exceeded and an exact
+   --  regrow budget; revalidating with that budget is complete.
+   procedure Check_Capacity is
+      use type SHACL_Ada.Validation.Error_Kind;
+      Shapes_Doc : constant String :=
+        "@prefix sh: <http://www.w3.org/ns/shacl#> ." & ASCII.LF &
+        "@prefix ex: <http://example.org/> ." & ASCII.LF &
+        "ex:S a sh:NodeShape ;" & ASCII.LF &
+        "  sh:targetNode ex:a, ex:b, ex:c ;" & ASCII.LF &
+        "  sh:property ex:P ." & ASCII.LF &
+        "ex:P a sh:PropertyShape ;" & ASCII.LF &
+        "  sh:path ex:p ;" & ASCII.LF &
+        "  sh:minCount 1 ." & ASCII.LF;
+      Shapes : Shape_Table_Ref;
+      Graph  : Graph_Ref;
+      Small  : Tiny_Eval.Violation_Table;
+      Small_Err : SHACL_Ada.Validation.Error_Kind;
+      Full   : Corpus_Eval.Violation_Table;
+      Full_Err  : SHACL_Ada.Validation.Error_Kind;
+   begin
+      Run_Inline_Shapes (Shapes_Doc, Shapes, Graph);
+      Tiny_Eval.Validate (Shapes.all, Graph.all, Small, Small_Err);
+      if Small.Count /= 2
+        or else Small_Err /= SHACL_Ada.Validation.Capacity_Exceeded
+        or else not Tiny_Eval.Capacity_Exceeded (Small)
+        or else Tiny_Eval.Total_Results (Small) /= 3
+      then
+         Put_Line ("FAIL capacity: stop-with-error and exact regrow budget");
+         Failures := Failures + 1;
+         return;
+      end if;
+      Corpus_Eval.Validate (Shapes.all, Graph.all, Full, Full_Err);
+      if Full.Count /= 3 or else Full_Err /= SHACL_Ada.Validation.None then
+         Put_Line ("FAIL capacity: regrown budget is not complete");
+         Failures := Failures + 1;
+      else
+         Put_Line ("PASS capacity: exceeded, total 3, regrown complete");
+      end if;
+   end Check_Capacity;
+
+  --  Wrapper/indexed agreement lockstep: both paths must produce
+  --  byte-identical tables (same engine, same inputs). Guards future
+  --  divergence; the W3C suite itself remains the independent oracle.
+  procedure Check_Indexed_Agreement
+    (Root : String; Entry_Case : Case_Record)
+  is
+    Path : constant String :=
+      Root & "/" & Entry_Case.Dir.all & "/" & Entry_Case.File.all;
+    Data_Path : constant String :=
+      Path (Path'First .. Path'Last - 4) & "-data.ttl";
+    Shapes_Path : constant String :=
+      Path (Path'First .. Path'Last - 4) & "-shapes.ttl";
+    Document  : constant String :=
+      Read_File (Path)
+      & (if Ada.Directories.Exists (Data_Path)
+         then Read_File (Data_Path)
+         else "")
+      & (if Ada.Directories.Exists (Shapes_Path)
+         then Read_File (Shapes_Path)
+         else "");
+    Dataset  : Flyology_RDF.Datasets.Dataset;
+    Loaded   : Boolean;
+    Shapes_A : constant Shape_Table_Ref := new SHACL_Ada.Shapes.Shape_Table;
+    Shapes_B : constant Shape_Table_Ref := new SHACL_Ada.Shapes.Shape_Table;
+    Graph    : constant Graph_Ref := new Corpus_Data.Graph;
+    Rpt_A    : constant Result_Ref := new Corpus_Eval.Violation_Table;
+    Rpt_B    : constant Result_Ref := new Corpus_Eval.Violation_Table;
+    Err_A    : SHACL_Ada.Validation.Error_Kind;
+    Err_B    : SHACL_Ada.Validation.Error_Kind;
+
+    function Same_Entry (I : Positive) return Boolean is
+      VA : constant SHACL_Ada.Validation.Violation := Rpt_A.List (I);
+      VB : constant SHACL_Ada.Validation.Violation := Rpt_B.List (I);
+    begin
+      if VA.Focus_Node /= VB.Focus_Node
+        or else VA.Value_Node /= VB.Value_Node
+        or else VA.Path /= VB.Path
+        or else VA.Source_Shape /= VB.Source_Shape
+        or else VA.Component /= VB.Component
+        or else VA.Severity /= VB.Severity
+        or else VA.Message /= VB.Message
+        or else VA.Detail_Count /= VB.Detail_Count
+      then
+         return False;
+      end if;
+      for D in 1 .. VA.Detail_Count loop
+         if VA.Details (D) /= VB.Details (D) then
+            return False;
+         end if;
+      end loop;
+      return True;
+    end Same_Entry;
+  begin
+    SHACL_Ada.Rdf.Load_Turtle
+      (Document, "file://" & Path, Dataset, Loaded);
+    if not Loaded then
+       Put_Line ("FAIL agreement: parse failed: " & Path);
+       Failures := Failures + 1;
+       return;
+    end if;
+    SHACL_Ada.Rdf.Extract_Shapes (Dataset, Shapes_A.all);
+    To_Graph (Dataset, Graph.all);
+    Shapes_B.all := Shapes_A.all;
+    Corpus_Eval.Validate (Shapes_A.all, Graph.all, Rpt_A.all, Err_A);
+    SHACL_Ada.Shapes.Finalize_Index (Shapes_B.all);
+    Corpus_Eval.Validate_Indexed (Shapes_B.all, Graph.all, Rpt_B.all, Err_B);
+    if Rpt_A.Count /= Rpt_B.Count
+      or else Err_A /= Err_B
+      or else Rpt_A.Dropped /= Rpt_B.Dropped
+    then
+       Put_Line ("FAIL agreement: count/error: " & Path);
+       Failures := Failures + 1;
+       return;
+    end if;
+    for I in 1 .. Rpt_A.Count loop
+       if not Same_Entry (I) then
+          Put_Line ("FAIL agreement: entry" & I'Image & ": " & Path);
+          Failures := Failures + 1;
+          return;
+       end if;
+    end loop;
+  end Check_Indexed_Agreement;
+
+  --  sh:detail: an sh:node failure links its fresh inner results.
+  procedure Check_Detail is
+    use type SHACL_Ada.Shapes.Constraint_Kind;
+    Shapes_Doc : constant String :=
+      "@prefix sh: <http://www.w3.org/ns/shacl#> ." & ASCII.LF &
+      "@prefix ex: <http://example.org/> ." & ASCII.LF &
+      "ex:S a sh:NodeShape ;" & ASCII.LF &
+      "  sh:targetNode ex:a ;" & ASCII.LF &
+      "  sh:node ex:Inner ." & ASCII.LF &
+      "ex:Inner a sh:NodeShape ;" & ASCII.LF &
+      "  sh:property ex:P ." & ASCII.LF &
+      "ex:P a sh:PropertyShape ;" & ASCII.LF &
+      "  sh:path ex:p ;" & ASCII.LF &
+      "  sh:minCount 1 ." & ASCII.LF;
+    Shapes : Shape_Table_Ref;
+    Graph  : Graph_Ref;
+    Local  : constant Result_Ref := new Corpus_Eval.Violation_Table;
+    Err    : SHACL_Ada.Validation.Error_Kind;
+  begin
+    Run_Inline_Shapes (Shapes_Doc, Shapes, Graph);
+    Corpus_Eval.Validate (Shapes.all, Graph.all, Local.all, Err);
+    if Local.Count /= 2 then
+       Put_Line ("FAIL detail: count");
+       Failures := Failures + 1;
+       return;
+    end if;
+    if Local.List (1).Component /= SHACL_Ada.Shapes.Min_Count
+      or else Local.List (2).Component /= SHACL_Ada.Shapes.Node_Link
+    then
+       Put_Line ("FAIL detail: inner-then-outer order");
+       Failures := Failures + 1;
+       return;
+    end if;
+    if Local.List (2).Detail_Count /= 1
+      or else Local.List (2).Details (1) /= 1
+    then
+       Put_Line ("FAIL detail: parent links inner result");
+       Failures := Failures + 1;
+    else
+       Put_Line ("PASS detail: sh:node links inner result");
+    end if;
+  end Check_Detail;
 
 begin
    declare
@@ -251,6 +525,7 @@ begin
                Put_Line ("FAIL " & Label);
                Failures := Failures + 1;
             end if;
+            Check_Indexed_Agreement (Root, Cases (Index));
          end;
       end loop;
    end;
@@ -258,6 +533,13 @@ begin
    Put_Line
      ("eval corpus:" & Natural'Image (Cases'Length) & " cases,"
       & Natural'Image (Failures) & " failures");
+   if Capacity_Hit then
+      Put_Line ("FAIL capacity: a corpus case exceeded its budget");
+      Failures := Failures + 1;
+   end if;
+   Check_Report_Surface;
+   Check_Capacity;
+   Check_Detail;
    if Failures > 0 then
       Ada.Command_Line.Set_Exit_Status (Ada.Command_Line.Failure);
    end if;

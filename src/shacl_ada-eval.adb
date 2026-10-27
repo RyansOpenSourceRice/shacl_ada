@@ -9,6 +9,7 @@ package body SHACL_Ada.Eval with SPARK_Mode is
     use type Terms.Term;
     use type Terms.Term_Kind;
     use type Shapes.Constraint_Kind;
+    use type Shapes.Severity_Kind;
     use type Shapes.Path_Kind;
     use type Validation.Violation;
 
@@ -1053,6 +1054,20 @@ package body SHACL_Ada.Eval with SPARK_Mode is
    --  Evaluation
    --  ------------------------------------------------------------------
 
+   --  Dedup identity for results: every field but the detail links.
+   --  Children link after the parent records, so comparing details
+   --  would un-dedup identical results; first details win instead.
+   function Same_Result
+     (A, B : Validation.Violation) return Boolean
+   is
+     (A.Focus_Node = B.Focus_Node
+      and then A.Value_Node = B.Value_Node
+      and then A.Path = B.Path
+      and then A.Source_Shape = B.Source_Shape
+      and then A.Component = B.Component
+      and then A.Severity = B.Severity
+      and then A.Message = B.Message);
+
    procedure Add_Violation
       (Target : in out Violation_Table;
        Item   : Validation.Violation)
@@ -1060,15 +1075,62 @@ package body SHACL_Ada.Eval with SPARK_Mode is
    is
    begin
       for I in 1 .. Target.Count loop
-         if Target.List (I) = Item then
+         if Same_Result (Target.List (I), Item) then
             return;
          end if;
       end loop;
       if Target.Count < Max_Violations then
          Target.Count := Target.Count + 1;
          Target.List (Target.Count) := Item;
+      elsif Target.Dropped < Natural'Last then
+         --  Fail-closed accounting: the result is lost, the count of
+         --  the loss is not. Validate reports Capacity_Exceeded.
+         Target.Dropped := Target.Dropped + 1;
       end if;
    end Add_Violation;
+
+   --  Fixed engine text per component, used when the shape carries no
+   --  sh:message. The structured fields (focus, value, path, shape,
+   --  component) carry the specifics; this is the human line. Every
+   --  literal fits Terms.Max_Text_Length by construction.
+   function Auto_Message (Component : Shapes.Constraint_Kind) return String with
+     Post => Auto_Message'Result'Length <= Terms.Max_Text_Length
+   is
+   begin
+      return (case Component is
+         when Shapes.Min_Count                  => "fewer values than sh:minCount",
+         when Shapes.Max_Count                  => "more values than sh:maxCount",
+         when Shapes.Min_Exclusive              => "value is not greater than sh:minExclusive",
+         when Shapes.Max_Exclusive              => "value is not less than sh:maxExclusive",
+         when Shapes.Min_Inclusive              => "value is less than sh:minInclusive",
+         when Shapes.Max_Inclusive              => "value is greater than sh:maxInclusive",
+         when Shapes.Min_Length                 => "string is shorter than sh:minLength",
+         when Shapes.Max_Length                 => "string is longer than sh:maxLength",
+         when Shapes.Pattern_Param              => "value does not match sh:pattern",
+         when Shapes.Language_In                => "language is not in sh:languageIn",
+         when Shapes.Unique_Lang                => "duplicate language tag violates sh:uniqueLang",
+         when Shapes.Datatype_Param             => "value has the wrong datatype for sh:datatype",
+         when Shapes.Equals_Param               => "values differ, violating sh:equals",
+         when Shapes.Disjoint_Param             => "values overlap, violating sh:disjoint",
+         when Shapes.Less_Than                 => "value is not less than sh:lessThan",
+         when Shapes.Less_Than_Or_Equals        => "value exceeds sh:lessThanOrEquals",
+         when Shapes.Closed_Param               => "unexpected predicate violates sh:closed",
+         when Shapes.Ignored_Property           => "ignored property misconfiguration",
+         when Shapes.Has_Value_Param            => "value differs from sh:hasValue",
+         when Shapes.In_Member                  => "value is not a member of sh:in",
+         when Shapes.Qualified_Value_Shape      => "value fails the sh:qualifiedValueShape",
+         when Shapes.Qualified_Shapes_Disjoint  => "sibling shapes overlap",
+         when Shapes.Qualified_Min_Count        => "too few values conform to the qualified shape",
+         when Shapes.Qualified_Max_Count        => "too many values conform to the qualified shape",
+         when Shapes.Not_Shape                  => "value conforms, violating sh:not",
+         when Shapes.And_Shape                  => "value fails a member of sh:and",
+         when Shapes.Or_Shape                   => "value is in no member of sh:or",
+         when Shapes.Xone_Shape                 => "value is not in exactly one member of sh:xone",
+         when Shapes.Node_Link                  => "value violates the sh:node shape",
+         when Shapes.Property_Link              => "value violates a sh:property shape",
+         when Shapes.Class_Param                => "value is not of the sh:class",
+         when Shapes.Node_Kind_Param            => "value has the wrong node kind for sh:nodeKind");
+   end Auto_Message;
 
    procedure Note_Violation
       (Value     : Terms.Term;
@@ -1091,7 +1153,13 @@ package body SHACL_Ada.Eval with SPARK_Mode is
                 Value_Node   => Value,
                 Path         => Shape.Path_Summary,
                 Source_Shape => Shape.Node,
-                Component    => Component));
+                Component    => Component,
+                Severity     => Shape.Severity,
+                Message      =>
+                  (if Shape.Message_Count > 0 then Shape.Messages (1)
+                   else Terms.Make_Literal (Auto_Message (Component))),
+                Detail_Count => 0,
+                Details      => (others => 0)));
          end if;
       end if;
    end Note_Violation;
@@ -1435,14 +1503,63 @@ package body SHACL_Ada.Eval with SPARK_Mode is
 
                 when Shapes.Node_Link =>
                    declare
-                      Ref_Ok : Boolean;
+                      Ref_Ok     : Boolean;
+                      Inner_Ref  : constant Natural :=
+                        Shapes.Find (Shape_Set, C.Value);
+                      Inner_From : constant Natural := Target.Count;
+                      Inner_Ok   : Boolean := True;
                    begin
                       Conforms_To_Ref
                         (Value, Shape_Set, C.Value, Graph, Depth, Target,
                          Ref_Ok);
-                      Note_Violation
-                        (Value, Shape, Focus, Shapes.Node_Link, Target, Emit,
-                         Ref_Ok, All_Ok);
+                      if Emit and then not Ref_Ok and then Inner_Ref > 0
+                        and then Depth < Max_Depth
+                      then
+                         --  Detail pass: re-evaluate with recording on
+                         --  so the parent can link the fresh children.
+                         --  Same depth bound as the conformance pass.
+                         Check_Node
+                           (Value, Inner_Ref, Graph, Shape_Set, Depth + 1,
+                            Target, True, Inner_Ok);
+                      end if;
+                      declare
+                         Before_Note : constant Natural := Target.Count;
+                         Was_Full    : constant Boolean :=
+                           Before_Note = Max_Violations;
+                      begin
+                         Note_Violation
+                           (Value, Shape, Focus, Shapes.Node_Link, Target,
+                            Emit, Ref_Ok, All_Ok);
+                         if not Was_Full
+                           and then Target.Count = Before_Note + 1
+                         then
+                            --  Parent newly recorded at the end: link up
+                            --  to Max_Details fresh children (indices
+                            --  Inner_From + 1 .. Before_Note). A dedup
+                            --  hit keeps the first details; nothing links.
+                            --  Before_Note < Max_Violations keeps every
+                            --  +1 below Natural'Last.
+                            declare
+                               Parent_At  : constant Natural :=
+                                 Before_Note + 1;
+                               Last_Child : constant Natural :=
+                                 Before_Note;
+                               K      : Natural := Inner_From;
+                               Linked : Natural range 0 .. Validation.Max_Details := 0;
+                            begin
+                               while K < Last_Child
+                                 and then Linked < Validation.Max_Details
+                               loop
+                                  pragma Loop_Invariant (K >= Inner_From);
+                                  pragma Loop_Invariant (Linked <= Validation.Max_Details);
+                                  K := K + 1;
+                                  Linked := Linked + 1;
+                                  Target.List (Parent_At).Details (Linked) := K;
+                               end loop;
+                               Target.List (Parent_At).Detail_Count := Linked;
+                            end;
+                         end if;
+                      end;
                    end;
 
                when Shapes.Not_Shape | Shapes.And_Shape
@@ -2052,10 +2169,11 @@ package body SHACL_Ada.Eval with SPARK_Mode is
       Ok := All_Ok;
    end Check_Property;
 
-   procedure Validate
-      (Shape_Set : Shapes.Shape_Table;
-       Graph     : Data.Graph;
-       Into      : in out Violation_Table)
+   procedure Validate_Indexed
+     (Shape_Set : Shapes.Shape_Table;
+      Graph     : Data.Graph;
+      Into      : in out Violation_Table;
+      Error     : out Validation.Error_Kind)
    is
       Before : constant Natural := Into.Count;
 
@@ -2075,115 +2193,223 @@ package body SHACL_Ada.Eval with SPARK_Mode is
          end if;
       end Check_Focus;
    begin
+      --  Dropped pertains to this call; List and Count accumulate per
+      --  the long-standing contract above.
+      Into.Dropped := 0;
+      --  Explicit node targets resolve directly: no data scan. Index
+      --  positions are trusted after Finalize_Index; the bounds checks
+      --  below keep a mutated table from indexing wild.
+      for N in 1 .. Shape_Set.Node_Count loop
+         pragma Loop_Invariant (Into.Count >= Before);
+         declare
+            Ref : constant Shapes.Target_Ref := Shape_Set.Nodes (N);
+         begin
+            if Ref.Shape <= Shape_Set.Count
+              and then Ref.Slot
+                       <= Shape_Set.List (Ref.Shape).Target_Count
+            then
+               Check_Focus
+                 (Shape_Set.List (Ref.Shape).Targets (Ref.Slot).Value,
+                  Ref.Shape);
+            end if;
+         end;
+      end loop;
+
+      --  One instance scan per distinct class.
+      for D in 1 .. Shape_Set.Class_Key_Count loop
+         pragma Loop_Invariant (Into.Count >= Before);
+         declare
+            Key_Ref : constant Shapes.Target_Ref :=
+              Shape_Set.Class_Keys (D);
+            Class_Term : constant Terms.Term :=
+              Shape_Set.List (Key_Ref.Shape)
+                .Targets (Key_Ref.Slot).Value;
+         begin
+            for I in 1 .. Graph.Count loop
+               pragma Loop_Invariant (Into.Count >= Before);
+               declare
+                  Stmt : constant Data.Triple :=
+                    Data.Element (Graph, I);
+               begin
+                  if Same (Stmt.Predicate, Rdf_Type_Term)
+                    and then (Same (Stmt.Object, Class_Term)
+                              or else Subclass_Reaches
+                                        (Graph, Stmt.Object, Class_Term,
+                                         Max_Depth))
+                  then
+                     for M in 1 .. Shape_Set.Class_Member_Count loop
+                        pragma Loop_Invariant (Into.Count >= Before);
+                        if Shape_Set.Class_Member_Groups (M) = D then
+                           declare
+                              Ref : constant Shapes.Target_Ref :=
+                                Shape_Set.Class_Members (M);
+                           begin
+                              if Ref.Shape <= Shape_Set.Count
+                                and then Ref.Slot
+                                  <= Shape_Set.List (Ref.Shape).Target_Count
+                              then
+                                 Check_Focus (Stmt.Subject, Ref.Shape);
+                              end if;
+                           end;
+                        end if;
+                     end loop;
+                  end if;
+               end;
+            end loop;
+         end;
+      end loop;
+
+      --  One scan per distinct subject predicate.
+      for D in 1 .. Shape_Set.Subject_Key_Count loop
+         pragma Loop_Invariant (Into.Count >= Before);
+         declare
+            Key_Ref : constant Shapes.Target_Ref :=
+              Shape_Set.Subject_Keys (D);
+            Pred_Term : constant Terms.Term :=
+              Shape_Set.List (Key_Ref.Shape)
+                .Targets (Key_Ref.Slot).Value;
+         begin
+            for I in 1 .. Graph.Count loop
+               pragma Loop_Invariant (Into.Count >= Before);
+               declare
+                  Stmt : constant Data.Triple :=
+                    Data.Element (Graph, I);
+               begin
+                  if Same (Stmt.Predicate, Pred_Term) then
+                     for M in 1 .. Shape_Set.Subject_Member_Count loop
+                        pragma Loop_Invariant (Into.Count >= Before);
+                        if Shape_Set.Subject_Member_Groups (M) = D then
+                           declare
+                              Ref : constant Shapes.Target_Ref :=
+                                Shape_Set.Subject_Members (M);
+                           begin
+                              if Ref.Shape <= Shape_Set.Count
+                                and then Ref.Slot
+                                  <= Shape_Set.List (Ref.Shape).Target_Count
+                              then
+                                 Check_Focus (Stmt.Subject, Ref.Shape);
+                              end if;
+                           end;
+                        end if;
+                     end loop;
+                  end if;
+               end;
+            end loop;
+         end;
+      end loop;
+
+      --  One scan per distinct object predicate.
+      for D in 1 .. Shape_Set.Object_Key_Count loop
+         pragma Loop_Invariant (Into.Count >= Before);
+         declare
+            Key_Ref : constant Shapes.Target_Ref :=
+              Shape_Set.Object_Keys (D);
+            Pred_Term : constant Terms.Term :=
+              Shape_Set.List (Key_Ref.Shape)
+                .Targets (Key_Ref.Slot).Value;
+         begin
+            for I in 1 .. Graph.Count loop
+               pragma Loop_Invariant (Into.Count >= Before);
+               declare
+                  Stmt : constant Data.Triple :=
+                    Data.Element (Graph, I);
+               begin
+                  if Same (Stmt.Predicate, Pred_Term) then
+                     for M in 1 .. Shape_Set.Object_Member_Count loop
+                        pragma Loop_Invariant (Into.Count >= Before);
+                        if Shape_Set.Object_Member_Groups (M) = D then
+                           declare
+                              Ref : constant Shapes.Target_Ref :=
+                                Shape_Set.Object_Members (M);
+                           begin
+                              if Ref.Shape <= Shape_Set.Count
+                                and then Ref.Slot
+                                  <= Shape_Set.List (Ref.Shape).Target_Count
+                              then
+                                 Check_Focus (Stmt.Object, Ref.Shape);
+                              end if;
+                           end;
+                        end if;
+                     end loop;
+                  end if;
+               end;
+            end loop;
+         end;
+      end loop;
+
+      --  Implicit class targets: a node shape that is also an
+      --  rdfs:Class targets its instances in the data graph,
+      --  reachable through rdfs:subClassOf. Deactivated shapes
+      --  validate nothing (Finalize_Index drops their explicit
+      --  targets; this scan keeps its own guard).
       for Idx in 1 .. Shape_Set.Count loop
          pragma Loop_Invariant (Into.Count >= Before);
          declare
             Shape : constant Shapes.Shape := Shape_Set.List (Idx);
          begin
-            if Shape.Deactivated then
-               --  sh:deactivated true: the shape validates nothing.
-               null;
-            else
-            for T in 1 .. Shape.Target_Count loop
-               pragma Loop_Invariant (Into.Count >= Before);
+            if Shape.Target_Count = 0
+              and then not Shape.Has_Path
+              and then Terms.Kind_Of (Shape.Node) = Terms.Iri
+              and then not Shape.Deactivated
+            then
                declare
-                  Tg : constant Shapes.Target := Shape.Targets (T);
+                  Is_Class : Boolean := False;
                begin
-                  case Tg.Kind is
-                     when Shapes.Target_Node =>
-                        Check_Focus (Tg.Value, Idx);
-                     when Shapes.Target_Class =>
-                         for I in 1 .. Graph.Count loop
-                            pragma Loop_Invariant (Into.Count >= Before);
-                            declare
-                              Stmt : constant Data.Triple :=
-                                Data.Element (Graph, I);
-                           begin
-                              if Same (Stmt.Predicate, Rdf_Type_Term)
-                                and then (Same (Stmt.Object, Tg.Value)
-                                            or else Subclass_Reaches
-                                                     (Graph, Stmt.Object,
-                                                      Tg.Value, Max_Depth))
-                              then
-                                 Check_Focus (Stmt.Subject, Idx);
-                              end if;
-                           end;
-                        end loop;
-                     when Shapes.Target_Subjects_Of =>
-                         for I in 1 .. Graph.Count loop
-                            pragma Loop_Invariant (Into.Count >= Before);
-                            declare
-                              Stmt : constant Data.Triple :=
-                                Data.Element (Graph, I);
-                           begin
-                              if Same (Stmt.Predicate, Tg.Value) then
-                                 Check_Focus (Stmt.Subject, Idx);
-                              end if;
-                           end;
-                        end loop;
-                     when Shapes.Target_Objects_Of =>
-                         for I in 1 .. Graph.Count loop
-                            pragma Loop_Invariant (Into.Count >= Before);
-                            declare
-                              Stmt : constant Data.Triple :=
-                                Data.Element (Graph, I);
-                           begin
-                              if Same (Stmt.Predicate, Tg.Value) then
-                                 Check_Focus (Stmt.Object, Idx);
-                              end if;
-                           end;
-                        end loop;
-                  end case;
-               end;
-            end loop;
-
-               --  Implicit class targets: a node shape that is also an
-               --  rdfs:Class targets its instances in the data graph,
-               --  reachable through rdfs:subClassOf.
-               if Shape.Target_Count = 0
-                 and then not Shape.Has_Path
-                 and then Terms.Kind_Of (Shape.Node) = Terms.Iri
-               then
-                  declare
-                     Is_Class : Boolean := False;
-                  begin
+                  for I in 1 .. Graph.Count loop
+                     pragma Loop_Invariant (Into.Count >= Before);
+                     declare
+                        Stmt : constant Data.Triple :=
+                          Data.Element (Graph, I);
+                     begin
+                        if Same (Stmt.Subject, Shape.Node)
+                          and then Same (Stmt.Predicate, Rdf_Type_Term)
+                          and then Same (Stmt.Object, Rdfs_Class_Term)
+                        then
+                           Is_Class := True;
+                        end if;
+                     end;
+                  end loop;
+                  if Is_Class then
                      for I in 1 .. Graph.Count loop
                         pragma Loop_Invariant (Into.Count >= Before);
                         declare
                            Stmt : constant Data.Triple :=
                              Data.Element (Graph, I);
                         begin
-                           if Same (Stmt.Subject, Shape.Node)
-                             and then Same (Stmt.Predicate, Rdf_Type_Term)
-                             and then Same (Stmt.Object, Rdfs_Class_Term)
+                           if Same (Stmt.Predicate, Rdf_Type_Term)
+                             and then (Same (Stmt.Object, Shape.Node)
+                               or else Subclass_Reaches
+                                        (Graph, Stmt.Object,
+                                         Shape.Node, Max_Depth))
                            then
-                              Is_Class := True;
+                              Check_Focus (Stmt.Subject, Idx);
                            end if;
                         end;
                      end loop;
-                     if Is_Class then
-                        for I in 1 .. Graph.Count loop
-                           pragma Loop_Invariant (Into.Count >= Before);
-                           declare
-                              Stmt : constant Data.Triple :=
-                                Data.Element (Graph, I);
-                           begin
-                              if Same (Stmt.Predicate, Rdf_Type_Term)
-                                and then (Same (Stmt.Object, Shape.Node)
-                                  or else Subclass_Reaches
-                                           (Graph, Stmt.Object,
-                                            Shape.Node, Max_Depth))
-                              then
-                                 Check_Focus (Stmt.Subject, Idx);
-                              end if;
-                           end;
-                        end loop;
-                     end if;
-                  end;
-               end if;
+                  end if;
+               end;
             end if;
          end;
       end loop;
+      Error :=
+        (if Into.Dropped > 0 then Validation.Capacity_Exceeded
+         else Validation.None);
+   end Validate_Indexed;
+
+   procedure Validate
+     (Shape_Set : in out Shapes.Shape_Table;
+      Graph     : Data.Graph;
+      Into      : in out Violation_Table;
+      Error     : out Validation.Error_Kind)
+   is
+   begin
+      --  Compatibility path: index on demand so a raw table validates
+      --  correctly. Idempotent — an indexed table only repays the
+      --  build. Hot paths finalize once and call Validate_Indexed.
+      if not Shape_Set.Indexed then
+         Shapes.Finalize_Index (Shape_Set);
+      end if;
+      Validate_Indexed (Shape_Set, Graph, Into, Error);
    end Validate;
 
 end SHACL_Ada.Eval;

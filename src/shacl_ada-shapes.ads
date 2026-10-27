@@ -20,6 +20,20 @@ package SHACL_Ada.Shapes with SPARK_Mode is
    type Target_Kind is
      (Target_Node, Target_Class, Target_Subjects_Of, Target_Objects_Of);
 
+   --  Report severities of the validation-report vocabulary (§5:
+   --  sh:resultSeverity). Stored per shape from sh:severity, defaulting
+   --  to Severity_Violation when the shape carries none.
+   type Severity_Kind is
+     (Severity_Violation, Severity_Warning, Severity_Info);
+
+   --  Distinct-language sh:message values kept per shape. The
+   --  Recommendation allows several messages with different language
+   --  tags; the bound is a shapes-graph budget, not a data budget, so
+   --  extraction fails closed past it (Boundary_Error).
+   Max_Messages_Per_Shape : constant := 4;
+
+   type Message_Array is array (1 .. Max_Messages_Per_Shape) of Terms.Term;
+
    type Constraint_Kind is
      (Min_Count, Max_Count,
       Min_Exclusive, Max_Exclusive, Min_Inclusive, Max_Inclusive,
@@ -71,6 +85,28 @@ package SHACL_Ada.Shapes with SPARK_Mode is
    type Constraint_Array is array (1 .. Max_Constraints_Per_Shape) of Constraint;
    type Path_Node_Array is array (1 .. Max_Path_Nodes) of Path_Node;
 
+   --  Target index for compile-once/validate-many. Entries point at a
+   --  shape and one of its target slots — no term is duplicated.
+   --  Members keep arrival order; Member_Groups tags each member with
+   --  its distinct-term ordinal so one data pass serves every shape
+   --  sharing a class or predicate. Deactivated shapes contribute no
+   --  entries: their targets never fire.
+   Max_Index_Entries : constant := Max_Shapes * Max_Targets_Per_Shape;
+
+   subtype Shape_Index is Positive range 1 .. Max_Shapes;
+   subtype Target_Position is Positive range 1 .. Max_Targets_Per_Shape;
+
+   type Target_Ref is record
+      Shape : Shape_Index := 1;
+      Slot  : Target_Position := 1;
+   end record;
+
+   type Target_Ref_Array is array (1 .. Max_Index_Entries) of Target_Ref;
+
+   subtype Group_Ordinal is Natural range 0 .. Max_Index_Entries;
+
+   type Group_Tag_Array is array (1 .. Max_Index_Entries) of Group_Ordinal;
+
    type Shape is record
       Node              : Terms.Term := Terms.Empty;
       Is_Property_Shape : Boolean    := False;
@@ -84,6 +120,14 @@ package SHACL_Ada.Shapes with SPARK_Mode is
       Constraints       : Constraint_Array;
       Constraint_Count  : Natural range 0 .. Max_Constraints_Per_Shape := 0;
       Deactivated       : Boolean    := False;
+      --  Report surface. Severity defaults to Violation; Messages holds
+      --  the distinct-language sh:message literals, first stored wins
+      --  per language tag. Severity_Set distinguishes an explicit
+      --  sh:Violation from the default (first sh:severity wins).
+      Severity          : Severity_Kind := Severity_Violation;
+      Severity_Set      : Boolean := False;
+      Messages          : Message_Array := (others => Terms.Empty);
+      Message_Count     : Natural range 0 .. Max_Messages_Per_Shape := 0;
    end record;
 
    type Shape_Array is array (1 .. Max_Shapes) of Shape;
@@ -93,7 +137,37 @@ package SHACL_Ada.Shapes with SPARK_Mode is
       Count      : Natural range 0 .. Max_Shapes := 0;
       Paths      : Path_Node_Array;
       Path_Count : Natural range 0 .. Max_Path_Nodes := 0;
+      --  Compiled target index. Finalize_Index builds it from Targets;
+      --  Indexed marks a table whose index matches its targets. The
+      --  index is valid until the table changes; re-finalize after
+      --  any shape edit.
+      Indexed             : Boolean := False;
+      Nodes               : Target_Ref_Array := (others => <>);
+      Node_Count          : Natural range 0 .. Max_Index_Entries := 0;
+      Class_Members       : Target_Ref_Array := (others => <>);
+      Class_Member_Groups : Group_Tag_Array := (others => 0);
+      Class_Member_Count  : Natural range 0 .. Max_Index_Entries := 0;
+      Class_Keys          : Target_Ref_Array := (others => <>);
+      Class_Key_Count     : Natural range 0 .. Max_Index_Entries := 0;
+      Subject_Members       : Target_Ref_Array := (others => <>);
+      Subject_Member_Groups : Group_Tag_Array := (others => 0);
+      Subject_Member_Count  : Natural range 0 .. Max_Index_Entries := 0;
+      Subject_Keys          : Target_Ref_Array := (others => <>);
+      Subject_Key_Count     : Natural range 0 .. Max_Index_Entries := 0;
+      Object_Members       : Target_Ref_Array := (others => <>);
+      Object_Member_Groups : Group_Tag_Array := (others => 0);
+      Object_Member_Count  : Natural range 0 .. Max_Index_Entries := 0;
+      Object_Keys          : Target_Ref_Array := (others => <>);
+      Object_Key_Count     : Natural range 0 .. Max_Index_Entries := 0;
    end record;
+
+   --  Build (or rebuild) the target index from the table's targets.
+   --  Idempotent and total: at most Max_Shapes * Max_Targets_Per_Shape
+   --  entries exist, so every list fits and no error channel is needed.
+   --  Deactivated shapes contribute nothing. Sets Indexed.
+   procedure Finalize_Index (Table : in out Shape_Table) with
+     Post => Table.Indexed
+             and then Table.Count = Table.Count'Old;
 
    --  Index of the shape with this node, or 0 when absent.
    function Find (Table : Shape_Table; Node : Terms.Term) return Natural with

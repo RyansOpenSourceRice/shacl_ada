@@ -26,6 +26,7 @@ Constraint evaluation is implemented: the engine (`SHACL_Ada.Eval`) evaluates no
 ## Using the repository
 
 - Conformance testing runs against the W3C SHACL test suite, vendored in `corpora/` at a recorded pin (`corpora/PIN.md`); integrity is verified by `scripts/vendor-corpus.sh --verify` and CI.
+- Corpus bench (informational, dev workstation, October 2026): the 86-case runner completes in ~8 s wall time — each case validates twice (one-shot wrapper plus indexed-path agreement check), so ~172 validations in that window.
 - The crate is built and consumed through [Alire](https://alire.ada.dev/); the descriptor is `alire.toml`.
 - Contributions follow `CONTRIBUTING.md`; AI agents follow `AGENTS.md`.
 
