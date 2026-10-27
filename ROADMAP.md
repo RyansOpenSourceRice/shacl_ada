@@ -8,7 +8,6 @@ shacl_ada becomes the dependable Ada/SPARK building block for SHACL validation: 
 
 ## Planned
 
-- **Validation-report vocabulary** — `sh:ValidationReport`/`sh:ValidationResult` output with severity, focus/value nodes, paths, and messages.
 - **SPARK Silver proofs** — gnatprove over the validator core: absence of runtime errors on the proved units.
 - **Alire index publication** — submit the crate to the community index once Core is usable from a linkable build.
 - **Preference-drift follow-up** — the switch from Codespell to cspell+Vale is a deviation from preferences.md §9 (which names Codespell). When §9 is updated upstream (operator-driven, §34), the DESIGN.md note is removed.
@@ -25,6 +24,9 @@ shacl_ada becomes the dependable Ada/SPARK building block for SHACL validation: 
 - **No preferences or pointer skill in the repo.** Both are global assets (`ryans-agentic-coding-preferences`); byte-identical copies would drift.
 
 ## Recently completed
+
+- **2026.10.26** — compile once, validate many: `Shapes.Finalize_Index` builds a target index (explicit nodes direct, one data pass per distinct class/subject-predicate/object-predicate) and `Eval.Validate_Indexed` runs the hot path while one-shot `Eval.Validate` stays the compatibility wrapper; `sh:detail` links up to four fresh child result indices on `sh:node` failures with boolean probes recording nothing. Corpus stays 86/86 with a wrapper/indexed byte-agreement lockstep per case plus a detail-linking assertion. See `CHANGELOG.md` [Unreleased].
+- **2026.10.26** — validation-report vocabulary: every violation carries severity, source shape, component, focus/value, path, and message (shape `sh:message` first-wins per language, fixed engine text otherwise); severity parsed from `sh:severity` (default Violation, malformed fails closed); spec-literal `sh:conforms`; explicit `Capacity_Exceeded` with `Dropped` count and exact `Total_Results` regrow budget instead of silent truncation. Corpus stays 86/86 with per-result severity/message assertions plus warning-passthrough and capacity round-trip tests. See `CHANGELOG.md` [Unreleased].
 
 - **2026.10.06** — SHACL path expressions: the full Core path grammar (§6) — predicate, inverse, sequence, alternative, and the zero-or-one/zero-or-more/one-or-more forms — as a bounded path AST in the shapes model, extracted by the boundary adapter (a list cell wins over sibling path predicates, matching the suite's strange-path cases), and evaluated by a fuel-bounded worklist walker with deduplicated value sets. All 13 vendored `core/path` suite cases pass; the corpus total is 86. See `CHANGELOG.md` [2026.10.06.2].
 - **2026.09.30** — constraint evaluation engine: the Core constraint components evaluated per the Recommendation's semantics (predicate paths; recursion bounded by `Max_Depth`), a caller-sized violation table, and the proof raised to level 3 (two-phase: full run plus `--limit-region` re-proof of two context-explosive postconditions). Followed the same day by the corpus milestone: the engine passes all 73 vendored W3C core-suite cases, with the semantic fixes that required, and the corpus runner wired into the local gate. See `CHANGELOG.md` [2026.09.30.1] and [2026.09.30.2].

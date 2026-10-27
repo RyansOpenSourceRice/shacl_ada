@@ -177,7 +177,20 @@ package body SHACL_Ada.Rdf is
    begin
       Table_Object :=
         (List => (others => <>), Paths => (others => <>),
-         Count => 0, Path_Count => 0);
+         Count => 0, Path_Count => 0, Indexed => False,
+         Nodes => (others => <>), Node_Count => 0,
+         Class_Members => (others => <>),
+         Class_Member_Groups => (others => 0),
+         Class_Member_Count => 0,
+         Class_Keys => (others => <>), Class_Key_Count => 0,
+         Subject_Members => (others => <>),
+         Subject_Member_Groups => (others => 0),
+         Subject_Member_Count => 0,
+         Subject_Keys => (others => <>), Subject_Key_Count => 0,
+         Object_Members => (others => <>),
+         Object_Member_Groups => (others => 0),
+         Object_Member_Count => 0,
+         Object_Keys => (others => <>), Object_Key_Count => 0);
       Pending_Count := 0;
       List_Count := 0;
       Reference_Count := 0;
@@ -509,11 +522,59 @@ package body SHACL_Ada.Rdf is
                if SHACL_Ada.Terms.Lexical_Of (Object) = "true" then
                   Table_Object.List (Index).Deactivated := True;
                end if;
+            elsif Suffix = "severity" then
+               --  First sh:severity wins; anything but the three
+               --  severity IRIs is a malformed shapes graph.
+               declare
+                  Shape : Shapes.Shape renames Table_Object.List (Index);
+               begin
+                  if not Shape.Severity_Set then
+                     if Is_Iri (Object, Shacl_Ns & "Violation") then
+                        Shape.Severity := Shapes.Severity_Violation;
+                     elsif Is_Iri (Object, Shacl_Ns & "Warning") then
+                        Shape.Severity := Shapes.Severity_Warning;
+                     elsif Is_Iri (Object, Shacl_Ns & "Info") then
+                        Shape.Severity := Shapes.Severity_Info;
+                     else
+                        raise Boundary_Error;
+                     end if;
+                     Shape.Severity_Set := True;
+                  end if;
+               end;
+            elsif Suffix = "message" then
+               --  Distinct-language literals only, first stored wins per
+               --  tag, at most Max_Messages_Per_Shape: anything else is
+               --  a malformed or over-budget shapes graph.
+               declare
+                  use type SHACL_Ada.Terms.Term_Kind;
+                  Shape : Shapes.Shape renames Table_Object.List (Index);
+                  Seen  : Boolean := False;
+               begin
+                  if SHACL_Ada.Terms.Kind_Of (Object)
+                    /= SHACL_Ada.Terms.Literal
+                  then
+                     raise Boundary_Error;
+                  end if;
+                  for Position in 1 .. Shape.Message_Count loop
+                     if SHACL_Ada.Terms.Language_Of
+                          (Shape.Messages (Position))
+                       = SHACL_Ada.Terms.Language_Of (Object)
+                     then
+                        Seen := True;
+                     end if;
+                  end loop;
+                  if not Seen then
+                     if Shape.Message_Count >= Shapes.Max_Messages_Per_Shape then
+                        raise Boundary_Error;
+                     end if;
+                     Shape.Message_Count := Shape.Message_Count + 1;
+                     Shape.Messages (Shape.Message_Count) := Object;
+                  end if;
+               end;
             end if;
-            --  Other SHACL vocabulary (sh:name, sh:message, sh:severity,
-            --  sh:order, sh:deactivated, sh:description, sh:group,
-            --  sh:resultSeverity, ...) is documentation and reporting
-            --  surface, not constraint parameters; it is ignored here.
+            --  Other SHACL vocabulary (sh:name, sh:order, sh:description,
+            --  sh:group, sh:resultSeverity, ...) is documentation and
+            --  reporting surface, not constraint parameters; ignored here.
          end;
       end;
    end Visit_Quad;

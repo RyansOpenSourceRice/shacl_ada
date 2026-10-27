@@ -14,9 +14,10 @@ with SHACL_Ada.Terms;
 
 procedure Shapes_Tests is
 
-    use type SHACL_Ada.Shapes.Constraint_Kind;
-    use type SHACL_Ada.Shapes.Path_Kind;
-    use type SHACL_Ada.Shapes.Target_Kind;
+   use type SHACL_Ada.Shapes.Constraint_Kind;
+   use type SHACL_Ada.Shapes.Path_Kind;
+   use type SHACL_Ada.Shapes.Target_Kind;
+   use type SHACL_Ada.Shapes.Severity_Kind;
 
    Failures : Natural := 0;
 
@@ -105,6 +106,68 @@ procedure Shapes_Tests is
       "ex:MaybeShape a sh:PropertyShape ;" & ASCII.LF &
       "  sh:path [ sh:zeroOrOnePath ex:child ] ;" & ASCII.LF &
       "  sh:minCount 1 ." & ASCII.LF;
+
+   --  Report surface: sh:severity and sh:message extraction.
+   Report_Document : constant String :=
+     "@prefix sh: <http://www.w3.org/ns/shacl#> ." & ASCII.LF &
+     "@prefix ex: <http://example.org/> ." & ASCII.LF &
+     "ex:WarnShape a sh:PropertyShape ;" & ASCII.LF &
+     "  sh:path ex:name ;" & ASCII.LF &
+     "  sh:minCount 1 ;" & ASCII.LF &
+     "  sh:severity sh:Warning ;" & ASCII.LF &
+     "  sh:message ""Be careful""@en ." & ASCII.LF &
+     "ex:PlainShape a sh:PropertyShape ;" & ASCII.LF &
+     "  sh:path ex:age ;" & ASCII.LF &
+     "  sh:minCount 1 ;" & ASCII.LF &
+     "  sh:message ""plain note"" ." & ASCII.LF &
+     "ex:MultiShape a sh:NodeShape ;" & ASCII.LF &
+     "  sh:message ""hello""@en ;" & ASCII.LF &
+     "  sh:message ""bonjour""@fr ;" & ASCII.LF &
+     "  sh:message ""hello again""@en ." & ASCII.LF &
+     "ex:BareShape a sh:NodeShape ." & ASCII.LF;
+
+   Bad_Severity_Document : constant String :=
+     "@prefix sh: <http://www.w3.org/ns/shacl#> ." & ASCII.LF &
+     "@prefix ex: <http://example.org/> ." & ASCII.LF &
+     "ex:BadShape a sh:NodeShape ;" & ASCII.LF &
+     "  sh:severity ex:Bogus ." & ASCII.LF;
+
+   Non_Literal_Message_Document : constant String :=
+     "@prefix sh: <http://www.w3.org/ns/shacl#> ." & ASCII.LF &
+     "@prefix ex: <http://example.org/> ." & ASCII.LF &
+     "ex:BadShape a sh:NodeShape ;" & ASCII.LF &
+     "  sh:message ex:Bogus ." & ASCII.LF;
+
+   Too_Many_Messages_Document : constant String :=
+     "@prefix sh: <http://www.w3.org/ns/shacl#> ." & ASCII.LF &
+     "@prefix ex: <http://example.org/> ." & ASCII.LF &
+     "ex:ChattyShape a sh:NodeShape ;" & ASCII.LF &
+     "  sh:message ""one""@en ;" & ASCII.LF &
+     "  sh:message ""un""@fr ;" & ASCII.LF &
+     "  sh:message ""two""@de ;" & ASCII.LF &
+     "  sh:message ""uno""@es ;" & ASCII.LF &
+     "  sh:message ""uno-it""@it ." & ASCII.LF;
+
+   procedure Check_Rejected (Document : String; Label : String) is
+      Graph : Flyology_RDF.Datasets.Dataset;
+      Ok    : Boolean;
+      Table : constant Shape_Table_Ref :=
+        new SHACL_Ada.Shapes.Shape_Table;
+   begin
+      SHACL_Ada.Rdf.Load_Turtle (Document, "", Graph, Ok);
+      if not Ok then
+         Check (False, Label & " parses");
+         return;
+      end if;
+      begin
+         SHACL_Ada.Rdf.Extract_Shapes (Graph, Table.all);
+      exception
+         when SHACL_Ada.Rdf.Boundary_Error =>
+            Check (True, Label & " rejected");
+            return;
+      end;
+      Check (False, Label & " rejected");
+   end Check_Rejected;
 
 begin
    declare
@@ -299,9 +362,146 @@ begin
             Check_Cardinality
               ("http://example.org/MaybeShape",
                SHACL_Ada.Shapes.Path_Zero_Or_One, "zeroOrOne");
-         end;
+          end;
+       end;
+     end;
+
+   --  Report surface: severity defaults to Violation, sh:severity and
+   --  sh:message land on the shape, distinct languages accumulate,
+   --  first per language wins, malformed values fail closed.
+   declare
+      Graph : Flyology_RDF.Datasets.Dataset;
+      Ok    : Boolean;
+      Table : constant Shape_Table_Ref :=
+        new SHACL_Ada.Shapes.Shape_Table;
+
+      function Shape_At (Name : String) return Natural is
+      begin
+         return SHACL_Ada.Shapes.Find
+           (Table.all, SHACL_Ada.Terms.Make_Iri (Name));
+      end Shape_At;
+   begin
+      SHACL_Ada.Rdf.Load_Turtle (Report_Document, "", Graph, Ok);
+      Check (Ok, "report document parses");
+      SHACL_Ada.Rdf.Extract_Shapes (Graph, Table.all);
+      Check (Table.all.Count = 4, "four report shapes extracted");
+
+      declare
+         W : Natural := Shape_At ("http://example.org/WarnShape");
+      begin
+         Check (W > 0, "WarnShape found");
+         if W > 0 then
+            declare
+               S : SHACL_Ada.Shapes.Shape renames Table.List (W);
+            begin
+               Check (S.Severity = SHACL_Ada.Shapes.Severity_Warning,
+                      "sh:severity Warning stored");
+               Check (S.Message_Count = 1, "one sh:message stored");
+               if S.Message_Count = 1 then
+                  Check (SHACL_Ada.Terms.Lexical_Of (S.Messages (1))
+                           = "Be careful",
+                         "message lexical kept");
+                  Check (SHACL_Ada.Terms.Language_Of (S.Messages (1))
+                           = "en",
+                         "message language kept");
+               end if;
+            end;
+         end if;
       end;
-    end;
+
+      declare
+         P : Natural := Shape_At ("http://example.org/PlainShape");
+      begin
+         Check (P > 0, "PlainShape found");
+         if P > 0 then
+            declare
+               S : SHACL_Ada.Shapes.Shape renames Table.List (P);
+            begin
+               Check (S.Severity = SHACL_Ada.Shapes.Severity_Violation,
+                      "missing severity defaults to Violation");
+               Check (S.Message_Count = 1, "plain message stored");
+               if S.Message_Count = 1 then
+                  Check (SHACL_Ada.Terms.Lexical_Of (S.Messages (1))
+                           = "plain note",
+                         "plain lexical kept");
+                  Check (SHACL_Ada.Terms.Language_Of (S.Messages (1))
+                           = "",
+                         "plain message has no language");
+               end if;
+            end;
+         end if;
+      end;
+
+      declare
+         M : Natural := Shape_At ("http://example.org/MultiShape");
+      begin
+         Check (M > 0, "MultiShape found");
+         if M > 0 then
+            declare
+               S : SHACL_Ada.Shapes.Shape renames Table.List (M);
+            begin
+               Check (S.Message_Count = 2,
+                      "distinct languages accumulate");
+               if S.Message_Count = 2 then
+                  --  Quad arrival order is the dataset's, not the
+                  --  document's, so assert the set, not the sequence:
+                  --  exactly {en, fr}, fr fixed, en is one of its two
+                  --  literals (the other was dropped as a duplicate).
+                  declare
+                     En_Seen, Fr_Seen : Boolean := False;
+                     En_Ok, Fr_Ok    : Boolean := True;
+                  begin
+                     for Position in 1 .. 2 loop
+                        declare
+                           Lang : constant String :=
+                             SHACL_Ada.Terms.Language_Of
+                               (S.Messages (Position));
+                           Lex : constant String :=
+                             SHACL_Ada.Terms.Lexical_Of
+                               (S.Messages (Position));
+                        begin
+                           if Lang = "en" then
+                              En_Seen := True;
+                              En_Ok := En_Ok
+                                and then (Lex = "hello"
+                                          or else Lex = "hello again");
+                           elsif Lang = "fr" then
+                              Fr_Seen := True;
+                              Fr_Ok := Fr_Ok and then Lex = "bonjour";
+                           else
+                              En_Ok := False;
+                           end if;
+                        end;
+                     end loop;
+                     Check (En_Seen and then Fr_Seen and then En_Ok and then Fr_Ok,
+                            "duplicate language dropped, distinct kept");
+                  end;
+               end if;
+            end;
+         end if;
+      end;
+
+      declare
+         B : Natural := Shape_At ("http://example.org/BareShape");
+      begin
+         Check (B > 0, "BareShape found");
+         if B > 0 then
+            declare
+               S : SHACL_Ada.Shapes.Shape renames Table.List (B);
+            begin
+               Check (S.Severity = SHACL_Ada.Shapes.Severity_Violation
+                      and then S.Message_Count = 0,
+                      "bare shape has defaults");
+            end;
+         end if;
+      end;
+
+      Check_Rejected (Bad_Severity_Document, "bogus severity");
+      Check_Rejected
+        (Non_Literal_Message_Document, "non-literal message");
+      Check_Rejected
+        (Too_Many_Messages_Document, "message budget overflow");
+   end;
 
    if Failures = 0 then
       Ada.Text_IO.Put_Line ("all shapes tests passed");

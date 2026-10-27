@@ -4,6 +4,18 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Added
+
+- Validation-report vocabulary: `Severity` and `Message` on shapes and violations; `sh:severity`/`sh:message` extraction (first-wins per language, four-tag budget, malformed fails closed); fixed per-component engine text when a shape carries no message; `Capacity_Exceeded` error with `Dropped` count and exact `Total_Results` regrow budget; spec-literal `sh:conforms`.
+- Tests: severity/message extraction assertions (defaults, distinct langs, three fail-closed rejections); per-result severity/message checks across the 86-case corpus; warning-passthrough with message and non-conformance; capacity stop-with-error plus regrow-to-complete round trip.
+- Compile once, validate many: `Shapes.Finalize_Index` (idempotent target index — explicit nodes resolve directly, one data pass per distinct class/subject-predicate/object-predicate) and `Eval.Validate_Indexed` over indexed tables; `sh:detail` child result indices (up to four) linking fresh inner results on `sh:node` failures, with boolean probes recording nothing.
+- Tests: wrapper/indexed byte-agreement lockstep on all 86 corpus cases; `sh:node` detail-linking assertion (inner `Min_Count` then outer `Node_Link` with the child link).
+
+### Changed
+
+- `Eval.Validate` gains an `Error` out parameter and resets `Dropped` per call; `Saturated` is kept for compatibility with `Capacity_Exceeded` as the exact check.
+- `Eval.Validate` now takes the shape table `in out` (it finalizes the index inline) — one-shot callers recompile nothing, repeated callers finalize once and use `Validate_Indexed`. Result order across a report is unspecified (targets evaluate bucketed by target kind).
+
 ## [2026.10.06.2] — 2026-10-06
 
 Path expressions: property shapes now evaluate the full SHACL 1.0 Core path grammar (§6); the corpus grows to 86 cases with all 13 `core/path` suite cases passing.

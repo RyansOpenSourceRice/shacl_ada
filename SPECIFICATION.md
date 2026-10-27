@@ -109,6 +109,17 @@ Skipped-by-design jobs (documented per §29, added when they apply): `container`
 
 W3C SHACL 1.0 Recommendation — shapes graph semantics, constraint components, and validation-report vocabulary as published 20 July 2017. Deviations, if any, are recorded in this file at implementation time, not silently absorbed.
 
+## Validation-report contract
+
+Each recorded violation carries the Recommendation's `sh:ValidationResult` terms the engine can state: focus node (`sh:focusNode`), value node (`sh:value`), result path (`sh:resultPath`, the shape's path summary), source shape (`sh:sourceShape`), source constraint component (`sh:sourceConstraintComponent`), severity (`sh:resultSeverity`), and message (`sh:resultMessage`). Serialization of these records to RDF triples lives outside the core (see `DESIGN.md`).
+
+- Severity comes from the shape's `sh:severity`, defaulting to `sh:Violation`. Anything but the three severity IRIs, or a non-IRI value, fails extraction (`Boundary_Error`).
+- Message comes from the shape's `sh:message` literals: distinct language tags only, first stored wins per tag, at most `Max_Messages_Per_Shape` (4) distinct tags or extraction fails. A shape without `sh:message` gets the engine's fixed English text for the violated component (message text is implementation-specific per the Recommendation). No `{$...}` substitution is performed.
+- `sh:conforms` is spec-literal: false when any result exists, including `sh:Warning` and `sh:Info` results. (Common practice differs; see `DESIGN.md`.)
+- Capacity is explicit, never silent: recording stops at `Max_Violations`; dropped results count in `Dropped`; `Validate` reports `Capacity_Exceeded`; `Total_Results` is the exact regrow budget (revalidate with at least that many slots). Evaluation itself always runs to completion — boolean connectives need complete sub-results — so per-node outcomes and conformance stay exact while only recording stops. `Saturated` is kept for compatibility; `Capacity_Exceeded` is the exact check.
+- Compile once, validate many: `Shapes.Finalize_Index` builds the target index from the table's targets (idempotent — re-finalizing rebuilds the same index, never changes validation). `Eval.Validate_Indexed` requires an indexed table and runs the hot path; `Eval.Validate` finalizes inline per call and stays the one-shot compatibility entry point. Both produce byte-identical tables on the same inputs (the corpus runner asserts this per case).
+- `sh:detail` nests causes: an `sh:node` failure re-runs the inner shape with recording on and links up to `Max_Details` (4) fresh child result indices on the parent result. Boolean contexts (`sh:not`, `sh:and`/`sh:or`/`sh:xone`, qualified siblings) probe with recording off, so no detail links outlive their parent and a parent duplicate-hit links nothing. Result order across a report is unspecified — targets evaluate bucketed by target kind, not in shapes-graph order — so consumers compare result sets, never sequences.
+
 ## Conformance deviations
 
 Recorded deviations, each also documented where the code carries it:
@@ -118,6 +129,8 @@ Recorded deviations, each also documented where the code carries it:
 - **An ill-formed path validates nothing.** A property shape whose `sh:path` does not resolve into a path expression is treated as validating nothing rather than as a shapes-graph failure; extraction does not raise for it.
 - **`sh:pattern` implements a bounded regex subset** — literals, `.`, character classes with ranges and negation, backslash escapes, the `*`/`+`/`?` quantifiers, `^`/`$` anchors, and the case-insensitivity flag — not the full XSD regular-expression surface.
 - **XSD numeric comparison approximates** beyond 18 significant mantissa digits and caps exponents at `2**20`; the corpus and ordinary datasets compare exactly.
+- **Duplicate-language `sh:message` keeps the first.** The Recommendation does not define shapes carrying two `sh:message` values with the same language tag; extraction stores the first per tag and ignores later ones. More than four distinct tags fail extraction (`Boundary_Error`).
+- **Auto-generated messages are fixed text.** When a shape carries no `sh:message`, the engine emits fixed English text per constraint component with no value interpolation. The Recommendation leaves message text implementation-specific.
 
 ## Versioning
 

@@ -19,11 +19,13 @@ with SHACL_Ada.Shapes;
 with SHACL_Ada.Terms;
 with SHACL_Ada.Validation;
 
-generic
+   generic
 
    --  Number of violations one Violation_Table of this instantiation
-   --  records. Validate stops recording beyond it; check Saturated to
-   --  detect that the budget was too small.
+   --  records. Recording stops at the budget: further distinct results
+   --  are counted in Dropped, Validate reports Capacity_Exceeded, and
+   --  the caller grows the budget to at least Total_Results and
+   --  revalidates. Nothing is silently truncated.
    Max_Violations : Positive;
 
    --  Number of distinct value nodes one path computation of this
@@ -36,6 +38,8 @@ generic
 
 package SHACL_Ada.Eval with SPARK_Mode is
 
+   use type Validation.Error_Kind;
+
    --  Shape-link recursion bound. Deep shapes graphs (chains of sh:node,
    --  sh:property, boolean connectives) evaluate only to this depth;
    --  deeper references conform vacuously.
@@ -44,8 +48,12 @@ package SHACL_Ada.Eval with SPARK_Mode is
    type Violation_Array is array (1 .. Max_Violations) of Validation.Violation;
 
    type Violation_Table is record
-      List  : Violation_Array;
-      Count : Natural range 0 .. Max_Violations := 0;
+      List    : Violation_Array;
+      Count   : Natural range 0 .. Max_Violations := 0;
+      --  Distinct results that did not fit the budget during the last
+      --  Validate call. Reset by Validate; List and Count still
+      --  accumulate across calls per the existing contract.
+      Dropped : Natural := 0;
    end record;
 
    --  True when validation produced no violation.
@@ -53,18 +61,52 @@ package SHACL_Ada.Eval with SPARK_Mode is
      (Result.Count = 0);
 
    --  True when the violation budget was exhausted and results may be
-   --  incomplete. Grow Max_Violations and revalidate.
+   --  incomplete. Kept for compatibility; Capacity_Exceeded is the
+   --  exact check (Saturated is also true when results exactly fill
+   --  the budget without loss).
    function Saturated (Result : Violation_Table) return Boolean is
      (Result.Count = Max_Violations);
 
-   --  Evaluate every targeted shape of Shape_Set over Graph and append
-   --  the violations to Into (existing entries are preserved; duplicate
-   --  results from overlapping targets are recorded once).
-    procedure Validate
-      (Shape_Set : Shapes.Shape_Table;
-       Graph     : Data.Graph;
-        Into      : in out Violation_Table) with
-      Post => Into.Count >= Into.Count'Old;
+   --  Exact capacity verdict for the last Validate call: no result was
+   --  lost when False.
+   function Capacity_Exceeded (Result : Violation_Table) return Boolean is
+     (Result.Dropped > 0);
+
+   --  Exact budget that holds the last call's complete result set:
+   --  revalidate with Max_Violations at least this large. Saturates at
+   --  Natural'Last instead of overflowing.
+   function Total_Results (Result : Violation_Table) return Natural is
+     (if Result.Count > Natural'Last - Result.Dropped then Natural'Last
+      else Result.Count + Result.Dropped);
+
+   --  Indexed validation over a Finalize_Index'd table: the hot path.
+   --  Index buckets mirror the spec's target kinds — explicit nodes
+   --  resolve directly, each distinct class/subject-predicate/
+   --  object-predicate costs one data pass, implicit class targets
+   --  keep their scan. Finalize once, validate many data graphs.
+   procedure Validate_Indexed
+     (Shape_Set : Shapes.Shape_Table;
+      Graph     : Data.Graph;
+      Into      : in out Violation_Table;
+      Error     : out Validation.Error_Kind) with
+     Pre  => Shape_Set.Indexed,
+     Post => Into.Count >= Into.Count'Old
+             and then (if Into.Dropped = 0 then Error = Validation.None
+                       else Error = Validation.Capacity_Exceeded);
+
+   --  One-shot validation over a raw table: finalizes the index, then
+   --  runs the indexed engine. Kept for compatibility; repeated calls
+   --  should finalize once and use Validate_Indexed. Finalizing is
+   --  idempotent, so calling this on an indexed table only repays the
+   --  index build, never correctness.
+   procedure Validate
+     (Shape_Set : in out Shapes.Shape_Table;
+      Graph     : Data.Graph;
+      Into      : in out Violation_Table;
+      Error     : out Validation.Error_Kind) with
+     Post => Into.Count >= Into.Count'Old
+             and then (if Into.Dropped = 0 then Error = Validation.None
+                       else Error = Validation.Capacity_Exceeded);
 
 private
 
