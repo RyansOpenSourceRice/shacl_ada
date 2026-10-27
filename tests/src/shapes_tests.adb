@@ -132,7 +132,7 @@ procedure Shapes_Tests is
      "ex:BadShape a sh:NodeShape ;" & ASCII.LF &
      "  sh:severity ex:Bogus ." & ASCII.LF;
 
-   Nonliteral_Message_Document : constant String :=
+   Non_Literal_Message_Document : constant String :=
      "@prefix sh: <http://www.w3.org/ns/shacl#> ." & ASCII.LF &
      "@prefix ex: <http://example.org/> ." & ASCII.LF &
      "ex:BadShape a sh:NodeShape ;" & ASCII.LF &
@@ -144,7 +144,7 @@ procedure Shapes_Tests is
      "ex:ChattyShape a sh:NodeShape ;" & ASCII.LF &
      "  sh:message ""one""@en ;" & ASCII.LF &
      "  sh:message ""un""@fr ;" & ASCII.LF &
-     "  sh:message ""eins""@de ;" & ASCII.LF &
+     "  sh:message ""two""@de ;" & ASCII.LF &
      "  sh:message ""uno""@es ;" & ASCII.LF &
      "  sh:message ""uno-it""@it ." & ASCII.LF;
 
@@ -498,7 +498,7 @@ begin
 
       Check_Rejected (Bad_Severity_Document, "bogus severity");
       Check_Rejected
-        (Nonliteral_Message_Document, "nonliteral message");
+        (Non_Literal_Message_Document, "non-literal message");
       Check_Rejected
         (Too_Many_Messages_Document, "message budget overflow");
    end;

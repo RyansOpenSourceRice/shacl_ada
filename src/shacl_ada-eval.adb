@@ -1054,9 +1054,10 @@ package body SHACL_Ada.Eval with SPARK_Mode is
    --  Evaluation
    --  ------------------------------------------------------------------
 
-   --  Dedup identity for results: every field but the detail links.
-   --  Children link after the parent records, so comparing details
-   --  would un-dedup identical results; first details win instead.
+   --  Duplicate-suppression identity for results: every field but
+   --  the detail links. Children link after the parent records, so
+   --  comparing details would split identical results; first
+   --  details win instead.
    function Same_Result
      (A, B : Validation.Violation) return Boolean
    is
@@ -1535,7 +1536,7 @@ package body SHACL_Ada.Eval with SPARK_Mode is
                          then
                             --  Parent newly recorded at the end: link up
                             --  to Max_Details fresh children (indices
-                            --  Inner_From + 1 .. Before_Note). A dedup
+                            --  Inner_From + 1 .. Before_Note). A duplicate
                             --  hit keeps the first details; nothing links.
                             --  Before_Note < Max_Violations keeps every
                             --  +1 below Natural'Last.

@@ -92,9 +92,9 @@ package body SHACL_Ada.Shapes with SPARK_Mode is
       end Note_Target;
 
        --  Group one kind's members into locals, then copy back.
-       --  Locals keep the writable actuals disjoint from the table the
-       --  tagger also reads (SPARK RM 6.4.2: no overlapping writable
-       --  actuals), so no nested-procedure aliasing can arise.
+       --  Locals keep the writable arguments disjoint from the table
+       --  the tagger also reads (SPARK RM 6.4.2: no overlapping
+       --  writable arguments), so no nested-procedure aliasing arises.
        procedure Tag_Kind (Kind : Target_Kind) is
           Tags : Group_Tag_Array := (others => 0);
           Keys : Target_Ref_Array := (others => <>);
